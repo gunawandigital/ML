@@ -99,8 +99,8 @@ class MetaAPITrader:
     async def get_account_balance(self) -> float:
         """Get current account balance"""
         try:
-            # Use the account object to get account information
-            account_info = await self.account.get_account_information()
+            # Use the connection to get account information
+            account_info = await self.connection.get_account_information()
             return account_info.get('balance', 0.0)
         except Exception as e:
             self.logger.warning(f"Could not retrieve balance: {e}")
@@ -331,14 +331,19 @@ class MetaAPITrader:
     async def check_and_close_positions(self):
         """Check and manage existing positions"""
         try:
-            # Use account method to get positions instead of connection
-            account_info = await self.account.get_account_information()
-            positions = account_info.get('positions', [])
-            
-            # Alternative: try terminal state if available
-            if not positions and hasattr(self.connection, 'terminal_state'):
+            # Use connection to get positions
+            positions = []
+            if hasattr(self.connection, 'terminal_state') and self.connection.terminal_state:
                 terminal_state = self.connection.terminal_state
-                positions = terminal_state.positions if terminal_state else []
+                positions = terminal_state.positions if hasattr(terminal_state, 'positions') else []
+            
+            # Alternative: try to get positions directly from connection
+            if not positions:
+                try:
+                    account_info = await self.connection.get_account_information()
+                    positions = account_info.get('positions', [])
+                except:
+                    positions = []
             
             for position in positions:
                 if position.get('symbol') == self.symbol:
