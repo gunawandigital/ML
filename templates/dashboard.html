@@ -1,0 +1,191 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forex Trading Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .status-card {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .running { border-left-color: #28a745; }
+        .stopped { border-left-color: #dc3545; }
+        .error { border-left-color: #ffc107; }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn-start { background: #28a745; color: white; }
+        .btn-stop { background: #dc3545; color: white; }
+        .btn-start:hover { background: #218838; }
+        .btn-stop:hover { background: #c82333; }
+        .signal-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .info-box {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .info-title {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+        .info-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .buy { color: #28a745; }
+        .sell { color: #dc3545; }
+        .hold { color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Forex ML Trading Dashboard</h1>
+            <p>XAUUSD Automated Trading System</p>
+        </div>
+
+        <div id="status-card" class="status-card stopped">
+            <h3>Trading Status: <span id="status-text">Stopped</span></h3>
+            <p id="status-message">Click Start to begin automated trading</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn-start" onclick="startTrading()">🚀 Start Trading</button>
+            <button class="btn-stop" onclick="stopTrading()">🛑 Stop Trading</button>
+        </div>
+
+        <div class="signal-info">
+            <div class="info-box">
+                <div class="info-title">Account Balance</div>
+                <div class="info-value" id="balance">$5,000.00</div>
+            </div>
+            <div class="info-box">
+                <div class="info-title">Total Trades</div>
+                <div class="info-value" id="total-trades">0</div>
+            </div>
+            <div class="info-box">
+                <div class="info-title">Current Signal</div>
+                <div class="info-value" id="signal">HOLD</div>
+            </div>
+            <div class="info-box">
+                <div class="info-title">Confidence</div>
+                <div class="info-value" id="confidence">--</div>
+            </div>
+            <div class="info-box">
+                <div class="info-title">Current Price</div>
+                <div class="info-value" id="price">$--</div>
+            </div>
+            <div class="info-box">
+                <div class="info-title">Last Update</div>
+                <div class="info-value" id="last-update">--</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusCard = document.getElementById('status-card');
+                    const statusText = document.getElementById('status-text');
+                    const statusMessage = document.getElementById('status-message');
+                    
+                    if (data.is_running) {
+                        statusCard.className = 'status-card running';
+                        statusText.textContent = 'Running';
+                        statusMessage.textContent = 'Automated trading is active';
+                    } else {
+                        statusCard.className = 'status-card stopped';
+                        statusText.textContent = 'Stopped';
+                        statusMessage.textContent = data.error_message || 'Trading is stopped';
+                    }
+
+                    // Update trading info
+                    document.getElementById('balance').textContent = `$${data.balance.toFixed(2)}`;
+                    document.getElementById('total-trades').textContent = data.total_trades;
+
+                    if (data.last_signal) {
+                        const signal = data.last_signal.signal;
+                        const signalElement = document.getElementById('signal');
+                        signalElement.textContent = signal;
+                        signalElement.className = `info-value ${signal.toLowerCase()}`;
+                        
+                        document.getElementById('confidence').textContent = 
+                            (data.last_signal.confidence * 100).toFixed(1) + '%';
+                        document.getElementById('price').textContent = 
+                            `$${data.last_signal.current_price.toFixed(2)}`;
+                        document.getElementById('last-update').textContent = 
+                            new Date(data.last_signal.timestamp).toLocaleTimeString();
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function startTrading() {
+            fetch('/api/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    updateStatus();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function stopTrading() {
+            fetch('/api/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    updateStatus();
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        // Update status every 10 seconds
+        setInterval(updateStatus, 10000);
+        updateStatus(); // Initial load
+    </script>
+</body>
+</html>
