@@ -92,7 +92,8 @@ class MetaAPITrader:
     async def get_account_balance(self) -> float:
         """Get current account balance"""
         try:
-            account_info = await self.connection.get_account_information()
+            # Use the account object instead of connection
+            account_info = await self.account.get_account_information()
             return account_info['balance']
         except Exception as e:
             self.logger.error(f"Error getting balance: {e}")
@@ -105,12 +106,12 @@ class MetaAPITrader:
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=count * 2)
             
-            # Use account method for getting recent candles
+            # Use account method for getting recent candles with proper parameters
             candles = await self.account.get_historical_candles(
                 self.symbol,
                 timeframe,
                 start_time,
-                end_time
+                count
             )
             
             # Take only the last 'count' candles
@@ -150,10 +151,28 @@ class MetaAPITrader:
             df = await self.get_real_time_data()
             
             if df.empty:
-                return {'signal': 'HOLD', 'confidence': 0.0, 'error': 'No data available'}
+                # Fallback to sample data if real data fails
+                self.logger.warning("No real-time data available, using fallback data")
+                return {
+                    'signal': 'HOLD', 
+                    'confidence': 0.0, 
+                    'current_price': 2650.0,  # Default XAUUSD price
+                    'timestamp': datetime.now(),
+                    'error': 'No real-time data available'
+                }
             
             # Prepare features
             processed_data = prepare_data(df, save_to_file=False)
+            
+            if processed_data.empty:
+                return {
+                    'signal': 'HOLD', 
+                    'confidence': 0.0, 
+                    'current_price': df['Close'].iloc[-1] if 'Close' in df.columns else 2650.0,
+                    'timestamp': datetime.now(),
+                    'error': 'Feature processing failed'
+                }
+            
             latest_data = processed_data.iloc[-1:].copy()
             features = select_features(latest_data)
             
@@ -185,7 +204,13 @@ class MetaAPITrader:
             
         except Exception as e:
             self.logger.error(f"Error generating signal: {e}")
-            return {'signal': 'HOLD', 'confidence': 0.0, 'error': str(e)}
+            return {
+                'signal': 'HOLD', 
+                'confidence': 0.0, 
+                'current_price': 2650.0,  # Default fallback price
+                'timestamp': datetime.now(),
+                'error': str(e)
+            }
     
     async def calculate_position_size(self, stop_loss_pips: int) -> float:
         """Calculate position size based on risk management"""

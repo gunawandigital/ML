@@ -114,7 +114,14 @@ async def run_demo_trading():
 
         print(f"   Signal: {signal['signal']}")
         print(f"   Confidence: {signal['confidence']:.1%}")
-        print(f"   Current Price: ${signal['current_price']:.2f}")
+        
+        if 'current_price' in signal:
+            print(f"   Current Price: ${signal['current_price']:.2f}")
+        else:
+            print("   Current Price: Not available")
+        
+        if 'error' in signal:
+            print(f"   Error: {signal['error']}")
 
         if signal['confidence'] >= config.CONFIDENCE_THRESHOLD:
             print(f"✅ Signal meets confidence threshold ({config.CONFIDENCE_THRESHOLD:.0%})")
