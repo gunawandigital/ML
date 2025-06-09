@@ -102,9 +102,9 @@ class MetaAPITrader:
     async def get_account_balance(self) -> float:
         """Get current account balance"""
         try:
-            # Use the account object to get account information
-            account_info = await self.account.get_account_information()
-            return account_info.balance
+            # Use the connection object to get account information
+            account_info = await self.connection.get_account_information()
+            return account_info.get('balance', 0.0)
         except Exception as e:
             self.logger.error(f"Error getting balance: {e}")
             return 0.0
@@ -173,22 +173,31 @@ class MetaAPITrader:
             
             # Prepare features
             try:
-                processed_data = prepare_data(df)
+                # Save DataFrame to temporary file for processing
+                temp_file = 'temp_realtime_data.csv'
+                df.to_csv(temp_file, index=False)
+                processed_data = prepare_data(temp_file)
+                # Clean up temp file
+                import os
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
             except Exception as feat_error:
                 self.logger.error(f"Feature processing error: {feat_error}")
+                current_price = df['Close'].iloc[-1] if len(df) > 0 and 'Close' in df.columns else 2650.0
                 return {
                     'signal': 'HOLD', 
                     'confidence': 0.0, 
-                    'current_price': df['Close'].iloc[-1] if 'Close' in df.columns else 2650.0,
+                    'current_price': current_price,
                     'timestamp': datetime.now(),
                     'error': f'Feature processing failed: {feat_error}'
                 }
             
             if processed_data.empty:
+                current_price = df['Close'].iloc[-1] if len(df) > 0 and 'Close' in df.columns else 2650.0
                 return {
                     'signal': 'HOLD', 
                     'confidence': 0.0, 
-                    'current_price': df['Close'].iloc[-1] if 'Close' in df.columns else 2650.0,
+                    'current_price': current_price,
                     'timestamp': datetime.now(),
                     'error': 'Feature processing returned empty data'
                 }
