@@ -98,7 +98,7 @@ class MetaAPITrader:
             self.logger.error(f"Error getting balance: {e}")
             return 0.0
     
-    async def get_real_time_data(self, timeframe: str = "M15", count: int = 100) -> pd.DataFrame:
+    async def get_real_time_data(self, timeframe: str = "15m", count: int = 100) -> pd.DataFrame:
         """Get real-time OHLC data from MetaTrader"""
         try:
             # Get historical data using streaming connection

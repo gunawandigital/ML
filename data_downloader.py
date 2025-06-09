@@ -51,7 +51,7 @@ class MetaAPIDataDownloader:
 
     async def download_historical_data(self, 
                                      symbol: str = "XAUUSD",
-                                     timeframe: str = "M15",
+                                     timeframe: str = "15m",
                                      days_back: int = 30,
                                      save_path: str = "data/xauusd_m15_real.csv") -> pd.DataFrame:
         """Download historical OHLC data from MetaAPI"""
