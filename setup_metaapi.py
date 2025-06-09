@@ -127,50 +127,64 @@ async def run_demo_trading():
     except Exception as e:
         print(f"❌ Demo session error: {e}")
         print("   This might be due to network connectivity issues")
-        print("   Please try again or check your MetaAPI credentials")Config
+        print("   Please try again or check your MetaAPI credentials")
 
-    config = TradingConfig()
+async def run_advanced_demo():
+    """Run advanced demo with MetaAPITrader"""
+    
+    print("\n🎯 Advanced Demo Trading Session")
+    print("=" * 50)
 
-    # Create trader instance with demo settings
-    trader = MetaAPITrader(
-        token=config.META_API_TOKEN,
-        account_id=config.ACCOUNT_ID,
-        symbol=config.SYMBOL,
-        lot_size=config.LOT_SIZE,
-        max_risk_per_trade=config.MAX_RISK_PER_TRADE,
-        stop_loss_pips=config.STOP_LOSS_PIPS,
-        take_profit_pips=config.TAKE_PROFIT_PIPS,
-        confidence_threshold=config.CONFIDENCE_THRESHOLD
-    )
-
-    if await trader.initialize():
-        print("✅ Trader initialized successfully!")
-
-        # Generate a single signal for testing
-        print("\n📊 Generating test signal...")
-        signal = await trader.generate_trading_signal()
-
-        print(f"   Signal: {signal['signal']}")
-        print(f"   Confidence: {signal['confidence']:.1%}")
+    try:
+        from metaapi_trader import MetaAPITrader
+        from trading_config import TradingConfig
         
-        if 'current_price' in signal:
-            print(f"   Current Price: ${signal['current_price']:.2f}")
-        else:
-            print("   Current Price: Not available")
-        
-        if 'error' in signal:
-            print(f"   Error: {signal['error']}")
+        config = TradingConfig()
 
-        if signal['confidence'] >= config.CONFIDENCE_THRESHOLD:
-            print(f"✅ Signal meets confidence threshold ({config.CONFIDENCE_THRESHOLD:.0%})")
-            print("   Ready for live trading!")
-        else:
-            print(f"⚠️ Signal below confidence threshold ({config.CONFIDENCE_THRESHOLD:.0%})")
-            print("   Waiting for better opportunity...")
+        # Create trader instance with demo settings
+        trader = MetaAPITrader(
+            token=config.META_API_TOKEN,
+            account_id=config.ACCOUNT_ID,
+            symbol=config.SYMBOL,
+            lot_size=config.LOT_SIZE,
+            max_risk_per_trade=config.MAX_RISK_PER_TRADE,
+            stop_loss_pips=config.STOP_LOSS_PIPS,
+            take_profit_pips=config.TAKE_PROFIT_PIPS,
+            confidence_threshold=config.CONFIDENCE_THRESHOLD
+        )
 
-        return True
-    else:
-        print("❌ Failed to initialize trader")
+        if await trader.initialize():
+            print("✅ Trader initialized successfully!")
+
+            # Generate a single signal for testing
+            print("\n📊 Generating test signal...")
+            signal = await trader.generate_trading_signal()
+
+            print(f"   Signal: {signal['signal']}")
+            print(f"   Confidence: {signal['confidence']:.1%}")
+            
+            if 'current_price' in signal:
+                print(f"   Current Price: ${signal['current_price']:.2f}")
+            else:
+                print("   Current Price: Not available")
+            
+            if 'error' in signal:
+                print(f"   Error: {signal['error']}")
+
+            if signal['confidence'] >= config.CONFIDENCE_THRESHOLD:
+                print(f"✅ Signal meets confidence threshold ({config.CONFIDENCE_THRESHOLD:.0%})")
+                print("   Ready for live trading!")
+            else:
+                print(f"⚠️ Signal below confidence threshold ({config.CONFIDENCE_THRESHOLD:.0%})")
+                print("   Waiting for better opportunity...")
+
+            return True
+        else:
+            print("❌ Failed to initialize trader")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Advanced demo error: {e}")
         return False
 
 async def main():
