@@ -57,23 +57,27 @@ async def start_trading_services():
     services = []
     
     try:
-        # 1. Start web dashboard (lightweight, fast startup)
+        # Set environment variables for faster startup
+        os.environ['DEPLOYMENT_MODE'] = 'true'
+        os.environ['PYTHONUNBUFFERED'] = '1'
+        
+        # 1. Start web dashboard (ultra-lightweight startup)
         print("📊 Starting web dashboard...")
         dashboard_process = subprocess.Popen([
             sys.executable, "web_dashboard.py"
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # Suppress output for faster startup
         services.append(('Dashboard', dashboard_process))
         
-        # Wait for dashboard to be ready
-        await asyncio.sleep(3)
+        # Shorter wait for faster deployment
+        await asyncio.sleep(1)
         
-        # 2. Start live trading (if enabled)
+        # 2. Start live trading (if enabled) - non-blocking
         auto_trading = os.getenv("AUTO_TRADING", "false").lower() == "true"
         if auto_trading:
-            print("🤖 Starting automated trading...")
+            print("🤖 Starting automated trading (background)...")
             trading_process = subprocess.Popen([
                 sys.executable, "run_live_trading.py"
-            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             services.append(('Live Trading', trading_process))
         
         print("✅ All services started successfully")
