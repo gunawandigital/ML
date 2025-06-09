@@ -35,3 +35,7 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python3 web_dashboard.py"
+
+[[ports]]
+localPort = 8080
+externalPort = 80
