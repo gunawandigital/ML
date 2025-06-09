@@ -1,7 +1,7 @@
 
 #!/usr/bin/env python3
 """
-Script untuk mengecek konfigurasi MetaAPI secrets
+Check MetaAPI secrets configuration
 """
 
 import os
@@ -65,6 +65,6 @@ if __name__ == "__main__":
     
     if success:
         print("\n🚀 You can now run MetaAPI setup or live trading!")
-        print("   Use option 7 in main menu for MetaAPI setup")
+        print("   Use option 8 in main menu for MetaAPI setup")
     else:
-        print("\n⚠️ Please fix the configuration first")
+        print("\n⚠️ Please fix the configuration issues above")

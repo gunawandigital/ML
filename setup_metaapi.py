@@ -1,3 +1,4 @@
+
 """
 Setup script for MetaAPI integration
 This script helps you set up the MetaAPI connection and test the integration
@@ -127,8 +128,8 @@ async def run_demo_trading():
         # Clean up connections
         try:
             await trader.cleanup()
-        except Exception:
-            pass
+        except Exception as cleanup_error:
+            print(f"⚠️ Cleanup warning: {cleanup_error}")
 
     except Exception as e:
         print(f"❌ Demo session error: {e}")
@@ -188,6 +189,10 @@ async def run_advanced_demo():
         else:
             print("❌ Failed to initialize trader")
             return False
+
+    except Exception as e:
+        print(f"❌ Advanced demo error: {e}")
+        return False
 
 async def test_trading_session():
     """Test trading session"""
@@ -249,8 +254,8 @@ async def test_trading_session():
         # Clean up connections
         try:
             await trader.cleanup()
-        except Exception:
-            pass
+        except Exception as cleanup_error:
+            print(f"⚠️ Cleanup warning: {cleanup_error}")
 
     except Exception as e:
         print(f"❌ Demo session error: {e}")
@@ -278,9 +283,12 @@ async def main():
 
     # Step 3: Run demo
     print("\n" + "="*60)
-    choice = input("Run demo trading session? (y/n): ").lower()
-    if choice == 'y':
-        await run_demo_trading()
+    try:
+        choice = input("Run demo trading session? (y/n): ").lower()
+        if choice == 'y':
+            await run_demo_trading()
+    except (EOFError, KeyboardInterrupt):
+        print("\n🛑 Demo cancelled by user")
 
     print("\n🎉 Setup completed!")
     print("=" * 60)
@@ -291,4 +299,9 @@ async def main():
     print("4. Run automated trading with proper risk management")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n🛑 Setup interrupted by user")
+    except Exception as e:
+        print(f"❌ Setup error: {e}")

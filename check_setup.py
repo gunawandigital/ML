@@ -5,6 +5,7 @@ Script untuk mengecek status setup MetaAPI dan konfigurasi
 """
 
 import os
+import pandas as pd
 from trading_config import TradingConfig
 
 def check_setup_status():
@@ -49,31 +50,21 @@ def check_setup_status():
     
     try:
         from metaapi_cloud_sdk import MetaApi
-        print("   ✅ MetaAPI SDK: Installed")
+        print("   ✅ MetaAPI SDK available")
     except ImportError:
-        print("   ❌ MetaAPI SDK: Not installed")
+        print("   ❌ MetaAPI SDK not installed")
         print("      Run: pip install metaapi-cloud-sdk")
     
     try:
         import pandas as pd
-        print("   ✅ Pandas: Installed")
-    except ImportError:
-        print("   ❌ Pandas: Not installed")
-    
-    try:
         import numpy as np
-        print("   ✅ NumPy: Installed")
-    except ImportError:
-        print("   ❌ NumPy: Not installed")
-    
-    try:
-        import joblib
-        print("   ✅ Joblib: Installed")
-    except ImportError:
-        print("   ❌ Joblib: Not installed")
+        import sklearn
+        print("   ✅ ML dependencies available")
+    except ImportError as e:
+        print(f"   ❌ Missing ML dependency: {e}")
     
     # Check 4: Model Files
-    print("\n🤖 4. Model Files:")
+    print("\n🤖 4. ML Model Files:")
     model_files = [
         "models/random_forest_model.pkl",
         "models/scaler.pkl"
@@ -81,26 +72,24 @@ def check_setup_status():
     
     for file_path in model_files:
         if os.path.exists(file_path):
-            size = os.path.getsize(file_path) / 1024  # KB
-            print(f"   ✅ {file_path}: {size:.1f} KB")
+            print(f"   ✅ {file_path}: Available")
         else:
             print(f"   ❌ {file_path}: Missing")
     
     # Check 5: Data Files
     print("\n📊 5. Data Files:")
     data_files = [
+        "data/xauusd_m15.csv",
         "data/xauusd_m15_real.csv",
-        "data/xauusd_m15_combined.csv",
-        "data/xauusd_m15.csv"
+        "data/xauusd_m15_combined.csv"
     ]
     
     for file_path in data_files:
         if os.path.exists(file_path):
-            import pandas as pd
             try:
                 df = pd.read_csv(file_path)
                 print(f"   ✅ {file_path}: {len(df)} rows")
-            except:
+            except Exception:
                 print(f"   ⚠️ {file_path}: Error reading")
         else:
             print(f"   ❌ {file_path}: Missing")
@@ -141,7 +130,7 @@ def check_setup_status():
         if not (account_id and account_id != "YOUR_ACCOUNT_ID_HERE"):
             print("3. Add ACCOUNT_ID to Replit Secrets")
         if not os.path.exists("models/random_forest_model.pkl"):
-            print("4. Train model first (option 4 in main menu)")
+            print("4. Train ML model using option 4 in main menu")
     
     return all_good
 

@@ -1,21 +1,23 @@
+#!/usr/bin/env python3
 """
-MetaAPI Data Downloader
-Download real historical data from MetaAPI for model training
+MetaAPI Data Downloader for real-time XAUUSD data
+Downloads historical data and combines with existing sample data
 """
 
 import asyncio
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
 import os
-from typing import Optional
+import pandas as pd
+from datetime import datetime, timedelta
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 try:
     from metaapi_cloud_sdk import MetaApi
 except ImportError:
-    print("⚠️ MetaAPI SDK not installed. Install with: pip install metaapi-cloud-sdk")
-
-from trading_config import TradingConfig
+    logger.error("MetaAPI SDK not installed. Run: pip install metaapi-cloud-sdk")
 
 class MetaAPIDataDownloader:
     """Download historical data from MetaAPI"""
@@ -25,7 +27,6 @@ class MetaAPIDataDownloader:
         self.account_id = account_id
         self.api = None
         self.account = None
-        self.connection = None
 
     async def initialize(self):
         """Initialize MetaAPI connection"""
@@ -33,86 +34,36 @@ class MetaAPIDataDownloader:
             self.api = MetaApi(self.token)
             self.account = await self.api.metatrader_account_api.get_account(self.account_id)
 
-            # Deploy and wait for connection
-            await self.account.deploy()
+            # Deploy account if needed
+            account_info = await self.account.get_account_information()
+            if account_info.get('state') != 'DEPLOYED':
+                await self.account.deploy()
+
+            # Wait for connection
             await self.account.wait_connected()
-
-            # Create streaming connection for data access
-            self.connection = self.account.get_streaming_connection()
-            await self.connection.connect()
-            await self.connection.wait_synchronized()
-
-            print("✅ MetaAPI connection established for data download")
+            logger.info("✅ MetaAPI connection established")
             return True
 
         except Exception as e:
-            print(f"❌ Failed to initialize MetaAPI: {e}")
+            logger.error(f"❌ Connection failed: {e}")
             return False
 
-    async def download_historical_data(self, 
-                                     symbol: str = "XAUUSD",
-                                     timeframe: str = "15m",
-                                     days_back: int = 30,
-                                     save_path: str = "data/xauusd_m15_real.csv") -> pd.DataFrame:
-        """Download historical OHLC data from MetaAPI"""
-
+    async def download_historical_data(self, symbol: str = "XAUUSD", timeframe: str = "15m", days_back: int = 30):
+        """Download historical data"""
         try:
-            print(f"📥 Downloading {days_back} days of {symbol} {timeframe} data...")
-
-            # Calculate time range
             end_time = datetime.now()
             start_time = end_time - timedelta(days=days_back)
 
-            print(f"   Period: {start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')}")
+            logger.info(f"📊 Downloading {days_back} days of {symbol} data...")
 
-            # Download data in chunks (MetaAPI has limits)
-            all_candles = []
-            chunk_days = 7  # Download 7 days at a time
-
-            current_start = start_time
-            while current_start < end_time:
-                current_end = min(current_start + timedelta(days=chunk_days), end_time)
-
-                print(f"   Downloading chunk: {current_start.strftime('%Y-%m-%d')} to {current_end.strftime('%Y-%m-%d')}")
-
-                try:
-                    # Use the correct MetaAPI method for historical data
-                    # Calculate number of candles needed for this time period
-                    time_diff = current_end - current_start
-                    hours_diff = time_diff.total_seconds() / 3600
-                    # For M15 timeframe, we have 4 candles per hour
-                    max_candles = min(int(hours_diff * 4) + 10, 1000)  # Add buffer, cap at 1000
-                    
-                    history = await self.account.get_historical_candles(
-                        symbol,
-                        timeframe,
-                        current_start,
-                        limit=max_candles
-                    )
-
-                    if history:
-                        all_candles.extend(history)
-                        print(f"     Downloaded {len(history)} candles")
-                    else:
-                        print(f"     No data available for this period")
-
-                    # Small delay to avoid rate limits
-                    await asyncio.sleep(2)
-
-                except Exception as e:
-                    print(f"     Error downloading chunk: {e}")
-                    # Continue with next chunk instead of stopping
-
-                current_start = current_end
-
-            if not all_candles:
-                print("❌ No data downloaded")
-                return pd.DataFrame()
+            # Get historical candles
+            candles = await self.account.get_historical_candles(
+                symbol, timeframe, start_time, end_time
+            )
 
             # Convert to DataFrame
             data = []
-            for candle in all_candles:
-                # MetaAPI History API candle format
+            for candle in candles:
                 if isinstance(candle['time'], str):
                     time_obj = datetime.fromisoformat(candle['time'].replace('Z', '+00:00'))
                 else:
@@ -120,7 +71,7 @@ class MetaAPIDataDownloader:
 
                 data.append({
                     'Date': time_obj.strftime('%Y-%m-%d'),
-                    'Time': time_obj.strftime('%H:%M'),
+                    'Time': time_obj.strftime('%H:%M:%S'),
                     'Open': candle['open'],
                     'High': candle['high'],
                     'Low': candle['low'],
@@ -129,126 +80,106 @@ class MetaAPIDataDownloader:
                 })
 
             df = pd.DataFrame(data)
-
-            # Remove duplicates and sort
-            df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
-            df = df.drop_duplicates(subset=['DateTime']).sort_values('DateTime')
-            df = df.drop('DateTime', axis=1)
-
-            print(f"✅ Downloaded {len(df)} candles")
-            print(f"   Date range: {df['Date'].min()} to {df['Date'].max()}")
-            print(f"   Price range: ${df['Low'].min():.2f} - ${df['High'].max():.2f}")
-
-            # Save to file
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            df.to_csv(save_path, index=False)
-            print(f"✅ Data saved to: {save_path}")
-
+            logger.info(f"✅ Downloaded {len(df)} candles")
             return df
 
         except Exception as e:
-            print(f"❌ Error downloading data: {e}")
+            logger.error(f"❌ Download failed: {e}")
             return pd.DataFrame()
 
-    async def update_training_data(self, 
-                                 new_data_path: str = "data/xauusd_m15_real.csv",
-                                 original_data_path: str = "data/xauusd_m15.csv",
-                                 output_path: str = "data/xauusd_m15_combined.csv"):
-        """Combine new real data with existing data"""
-
+    async def save_and_combine_data(self, new_data: pd.DataFrame):
+        """Save new data and combine with existing data"""
         try:
-            print("🔄 Updating training dataset...")
+            # Save real data
+            real_file = "data/xauusd_m15_real.csv"
+            new_data.to_csv(real_file, index=False)
+            logger.info(f"✅ Real data saved: {real_file}")
 
-            # Load new real data
-            if os.path.exists(new_data_path):
-                new_df = pd.read_csv(new_data_path)
-                print(f"   New real data: {len(new_df)} rows")
-            else:
-                print("   No new real data found")
-                return False
+            # Combine with sample data if available
+            sample_file = "data/xauusd_m15.csv"
+            combined_file = "data/xauusd_m15_combined.csv"
 
-            # Load original data (if exists)
-            if os.path.exists(original_data_path):
-                original_df = pd.read_csv(original_data_path)
-                print(f"   Original data: {len(original_df)} rows")
+            if os.path.exists(sample_file):
+                sample_data = pd.read_csv(sample_file)
 
                 # Combine datasets
-                combined_df = pd.concat([original_df, new_df], ignore_index=True)
+                combined_data = pd.concat([sample_data, new_data], ignore_index=True)
+
+                # Remove duplicates based on Date and Time
+                combined_data = combined_data.drop_duplicates(subset=['Date', 'Time'])
+
+                # Sort by date and time
+                combined_data['datetime'] = pd.to_datetime(combined_data['Date'] + ' ' + combined_data['Time'])
+                combined_data = combined_data.sort_values('datetime').drop('datetime', axis=1)
+
+                # Save combined data
+                combined_data.to_csv(combined_file, index=False)
+                logger.info(f"✅ Combined data saved: {combined_file} ({len(combined_data)} rows)")
+
+                return combined_data
             else:
-                combined_df = new_df
-
-            # Remove duplicates
-            combined_df['DateTime'] = pd.to_datetime(combined_df['Date'] + ' ' + combined_df['Time'])
-            combined_df = combined_df.drop_duplicates(subset=['DateTime']).sort_values('DateTime')
-            combined_df = combined_df.drop('DateTime', axis=1)
-
-            # Save combined dataset
-            combined_df.to_csv(output_path, index=False)
-
-            print(f"✅ Combined dataset saved: {len(combined_df)} rows")
-            print(f"   Saved to: {output_path}")
-
-            return True
+                logger.warning("Sample data not found, using only real data")
+                return new_data
 
         except Exception as e:
-            print(f"❌ Error updating training data: {e}")
-            return False
+            logger.error(f"❌ Save/combine failed: {e}")
+            return pd.DataFrame()
 
-    async def download_and_retrain(self, 
-                                 days_back: int = 30,
-                                 retrain_model: bool = True):
-        """Complete workflow: download data and retrain model"""
+    async def download_and_retrain(self, days_back: int = 30):
+        """Download data and retrain model"""
+        try:
+            # Download new data
+            new_data = await self.download_historical_data(days_back=days_back)
 
-        print("🚀 Starting data download and retraining workflow...")
+            if new_data.empty:
+                logger.error("❌ No data downloaded")
+                return False
 
-        # Step 1: Download real data
-        real_data = await self.download_historical_data(days_back=days_back)
+            # Save and combine data
+            combined_data = await self.save_and_combine_data(new_data)
 
-        if real_data.empty:
-            print("❌ Failed to download real data")
-            return False
+            if combined_data.empty:
+                logger.error("❌ Failed to process data")
+                return False
 
-        # Step 2: Update training dataset
-        success = await self.update_training_data()
-
-        if not success:
-            print("❌ Failed to update training data")
-            return False
-
-        # Step 3: Retrain model with new data
-        if retrain_model:
-            print("\n🤖 Retraining model with real data...")
+            # Retrain model with new data
+            logger.info("🤖 Retraining model with updated data...")
 
             try:
                 from train import train_model
 
-                # Train with combined dataset
-                model, scaler, accuracy = train_model(
-                    data_path='data/xauusd_m15_combined.csv',
-                    model_path='models/'
-                )
+                # Use combined data if available, otherwise real data
+                data_file = "data/xauusd_m15_combined.csv" if os.path.exists("data/xauusd_m15_combined.csv") else "data/xauusd_m15_real.csv"
 
-                print(f"✅ Model retrained successfully!")
-                print(f"   New accuracy: {accuracy:.4f}")
-
-                # Test with latest prediction
-                print("\n📊 Testing with latest real data...")
-                from predict import get_latest_signal
-
-                signal = get_latest_signal(data_path='data/xauusd_m15_combined.csv')
-                print(f"   Latest signal: {signal['signal']} (confidence: {signal['confidence']:.1%})")
+                model, scaler, accuracy = train_model(data_path=data_file)
+                logger.info(f"✅ Model retrained successfully! Accuracy: {accuracy:.4f}")
 
                 return True
 
-            except Exception as e:
-                print(f"❌ Error retraining model: {e}")
+            except Exception as train_error:
+                logger.error(f"❌ Retraining failed: {train_error}")
                 return False
 
-        return True
+        except Exception as e:
+            logger.error(f"❌ Download and retrain failed: {e}")
+            return False
+
+    async def cleanup(self):
+        """Cleanup connections"""
+        try:
+            if self.account:
+                await self.account.undeploy()
+            logger.info("✅ Connections cleaned up")
+        except Exception as e:
+            logger.warning(f"⚠️ Cleanup warning: {e}")
 
 async def main():
-    """Main function to download real data and retrain"""
+    """Main function for data download and retrain"""
 
+    print("📊 MetaAPI Data Downloader & Model Retrain")
+    print("=" * 60)
+
+    from trading_config import TradingConfig
     config = TradingConfig()
 
     # Validate configuration
@@ -293,27 +224,30 @@ async def main():
                 print("Using default: 30 days")
 
             # Download and retrain
-            success = await downloader.download_and_retrain(
-                days_back=days,
-                retrain_model=True
-            )
+            success = await downloader.download_and_retrain(days_back=days)
 
             if success:
-                print("\n🎉 Data download and retraining completed successfully!")
-                print("\nNext steps:")
-                print("1. Test the retrained model")
-                print("2. Run backtesting with new data")
-                print("3. Start live trading with improved model")
+                print("\n🎉 Data download and model retraining completed!")
+                print("✅ Your system is now updated with real market data")
             else:
-                print("\n❌ Process failed. Check the logs above.")
+                print("\n❌ Process failed. Please check the logs above")
 
-        except KeyboardInterrupt:
-            print("\n🛑 Process cancelled by user")
-        except Exception as e:
-            print(f"\n❌ Error: {e}")
+        except (EOFError, KeyboardInterrupt):
+            print("\n🛑 Download cancelled by user")
+        except ValueError:
+            print("❌ Invalid input. Please enter a number")
+
+        finally:
+            await downloader.cleanup()
 
     else:
         print("❌ Failed to connect to MetaAPI")
+        print("💡 Please check your credentials and network connection")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n🛑 Download interrupted by user")
+    except Exception as e:
+        print(f"❌ Error: {e}")
