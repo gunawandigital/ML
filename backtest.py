@@ -46,27 +46,15 @@ def backtest_strategy(data_path=None, model_path='models/',
                      initial_capital=10000, position_size=0.1, transaction_cost=0.0001):
     """Backtest the trading strategy using real MetaAPI data when available"""
     
-    # Auto-select best available data (prioritize real data)
+    # Auto-select only real MetaAPI data
     if data_path is None:
-        data_files = [
-            ('data/xauusd_m15_combined.csv', 'COMBINED (Real + Sample)'),
-            ('data/xauusd_m15_real.csv', 'REAL MetaAPI'),
-            ('data/xauusd_m15.csv', 'SAMPLE')
-        ]
+        # Only use real MetaAPI data for backtesting
+        if os.path.exists('data/xauusd_m15_real.csv'):
+            data_path = 'data/xauusd_m15_real.csv'
+            data_type = 'REAL MetaAPI'
+        else:
+            raise FileNotFoundError("No real MetaAPI data found! Please download real data first using option 2 in main menu.")
         
-        selected_data = None
-        data_type = None
-        
-        for path, desc in data_files:
-            if os.path.exists(path):
-                selected_data = path
-                data_type = desc
-                break
-        
-        if not selected_data:
-            raise FileNotFoundError("No data files found!")
-        
-        data_path = selected_data
         print(f"📊 Backtesting with {data_type} data: {data_path}")
     
     # Load model and scaler
@@ -224,18 +212,11 @@ if __name__ == "__main__":
         # Run backtest (will auto-select best data)
         equity_df, trades_df = backtest_strategy()
         
-        # Get the same data path that was used for backtesting
-        data_files = [
-            'data/xauusd_m15_combined.csv',
-            'data/xauusd_m15_real.csv',
-            'data/xauusd_m15.csv'
-        ]
-        
-        selected_data = None
-        for data_path in data_files:
-            if os.path.exists(data_path):
-                selected_data = data_path
-                break
+        # Use only real MetaAPI data for plotting
+        if os.path.exists('data/xauusd_m15_real.csv'):
+            selected_data = 'data/xauusd_m15_real.csv'
+        else:
+            raise FileNotFoundError("No real MetaAPI data found for plotting!")
         
         # Load backtest data for plotting
         df = prepare_data(selected_data)
