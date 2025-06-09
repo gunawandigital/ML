@@ -105,33 +105,28 @@ class MetaAPITrader:
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=count)
             
-            candles = await self.connection.get_historical_market_data(
+            candles = await self.connection.get_candles(
                 symbol=self.symbol,
                 timeframe=timeframe,
                 start_time=start_time,
-                end_time=end_time
+                limit=count
             )
             
             # Convert to DataFrame
             data = []
             for candle in candles:
-                # Handle both formats: direct candle data or nested structure
-                if isinstance(candle, dict) and 'time' in candle:
-                    time_val = candle['time']
-                    if isinstance(time_val, str):
-                        time_obj = datetime.fromisoformat(time_val.replace('Z', '+00:00'))
-                    else:
-                        time_obj = time_val
-                    
-                    data.append({
-                        'Date': time_obj.strftime('%Y-%m-%d'),
-                        'Time': time_obj.strftime('%H:%M:%S'),
-                        'Open': candle.get('open', 0),
-                        'High': candle.get('high', 0),
-                        'Low': candle.get('low', 0),
-                        'Close': candle.get('close', 0),
-                        'Volume': candle.get('tickVolume', candle.get('volume', 0))
-                    })
+                # MetaAPI candle format
+                time_obj = candle['time']
+                
+                data.append({
+                    'Date': time_obj.strftime('%Y-%m-%d'),
+                    'Time': time_obj.strftime('%H:%M:%S'),
+                    'Open': candle['open'],
+                    'High': candle['high'],
+                    'Low': candle['low'],
+                    'Close': candle['close'],
+                    'Volume': candle.get('tickVolume', 0)
+                })
             
             df = pd.DataFrame(data)
             return df

@@ -75,12 +75,12 @@ class MetaAPIDataDownloader:
                 print(f"   Downloading chunk: {current_start.strftime('%Y-%m-%d')} to {current_end.strftime('%Y-%m-%d')}")
                 
                 try:
-                    # Use the correct method for getting historical market data
-                    candles = await self.connection.get_historical_market_data(
+                    # Use the correct method for getting historical candles
+                    candles = await self.connection.get_candles(
                         symbol=symbol,
                         timeframe=timeframe,
                         start_time=current_start,
-                        end_time=current_end
+                        limit=1000  # MetaAPI limit per request
                     )
                     
                     if candles:
@@ -102,23 +102,18 @@ class MetaAPIDataDownloader:
             # Convert to DataFrame
             data = []
             for candle in all_candles:
-                # Handle both formats: direct candle data or nested structure
-                if isinstance(candle, dict) and 'time' in candle:
-                    time_val = candle['time']
-                    if isinstance(time_val, str):
-                        time_obj = datetime.fromisoformat(time_val.replace('Z', '+00:00'))
-                    else:
-                        time_obj = time_val
-                    
-                    data.append({
-                        'Date': time_obj.strftime('%Y-%m-%d'),
-                        'Time': time_obj.strftime('%H:%M'),
-                        'Open': candle.get('open', 0),
-                        'High': candle.get('high', 0),
-                        'Low': candle.get('low', 0),
-                        'Close': candle.get('close', 0),
-                        'Volume': candle.get('tickVolume', candle.get('volume', 0))
-                    })
+                # MetaAPI candle format
+                time_obj = candle['time']
+                
+                data.append({
+                    'Date': time_obj.strftime('%Y-%m-%d'),
+                    'Time': time_obj.strftime('%H:%M'),
+                    'Open': candle['open'],
+                    'High': candle['high'],
+                    'Low': candle['low'],
+                    'Close': candle['close'],
+                    'Volume': candle.get('tickVolume', 0)
+                })
             
             df = pd.DataFrame(data)
             
