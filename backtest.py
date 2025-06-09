@@ -3,7 +3,21 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import joblib
-from feature_engineering import prepare_data, select_features
+from feature_engineering import prepare_data
+
+def select_features(df):
+    """Select relevant features for backtesting"""
+    feature_columns = [
+        'EMA_9', 'EMA_21', 'EMA_50',
+        'RSI_14', 'RSI_21',
+        'HL_Ratio', 'OC_Ratio',
+        'Return_1', 'Return_5', 'Return_15',
+        'Volatility_5', 'Volatility_15',
+        'EMA_Cross_9_21', 'EMA_Cross_21_50',
+        'Price_Above_EMA9', 'Price_Above_EMA21', 'Price_Above_EMA50'
+    ]
+    
+    return df[feature_columns]
 
 def backtest_strategy(data_path='data/xauusd_m15.csv', model_path='models/', 
                      initial_capital=10000, position_size=0.1, transaction_cost=0.0001):
