@@ -77,14 +77,12 @@ class MetaAPIDataDownloader:
                 print(f"   Downloading chunk: {current_start.strftime('%Y-%m-%d')} to {current_end.strftime('%Y-%m-%d')}")
                 
                 try:
-                    # Use HistoryStorage API for historical data
-                    history_storage = self.connection.history_storage
-                    
-                    candles = await history_storage.get_candles(
+                    # Use the correct MetaAPI method for historical data
+                    candles = await self.connection.get_candles(
                         symbol=symbol,
                         timeframe=timeframe,
                         start_time=current_start,
-                        end_time=current_end
+                        limit=1000  # MetaAPI limit per request
                     )
                     
                     if candles:
