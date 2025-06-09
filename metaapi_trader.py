@@ -105,12 +105,14 @@ class MetaAPITrader:
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=count * 2)
             
-            # Use RPC connection to get candles
-            candles = await self.connection.get_candles(
+            # Use History API for getting recent candles
+            history_api = self.api.history_api
+            candles = await history_api.get_candles(
+                account_id=self.account_id,
                 symbol=self.symbol,
                 timeframe=timeframe,
                 start_time=start_time,
-                limit=count
+                end_time=end_time
             )
             
             # Take only the last 'count' candles
@@ -120,8 +122,11 @@ class MetaAPITrader:
             # Convert to DataFrame
             data = []
             for candle in candles:
-                # MetaAPI candle format
-                time_obj = candle['time']
+                # MetaAPI History API candle format
+                if isinstance(candle['time'], str):
+                    time_obj = datetime.fromisoformat(candle['time'].replace('Z', '+00:00'))
+                else:
+                    time_obj = candle['time']
                 
                 data.append({
                     'Date': time_obj.strftime('%Y-%m-%d'),

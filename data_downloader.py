@@ -37,10 +37,8 @@ class MetaAPIDataDownloader:
             await self.account.deploy()
             await self.account.wait_connected()
 
-            # Use RPC connection for historical data
-            self.connection = self.account.get_rpc_connection()
-            await self.connection.connect()
-            await self.connection.wait_synchronized()
+            # Use History API for downloading historical data
+            self.history_api = self.api.history_api
 
             print("✅ MetaAPI RPC connection established for data download")
             return True
@@ -76,13 +74,30 @@ class MetaAPIDataDownloader:
                 print(f"   Downloading chunk: {current_start.strftime('%Y-%m-%d')} to {current_end.strftime('%Y-%m-%d')}")
 
                 try:
-                    # Use MetaAPI RPC connection to get historical candles
-                    history = await self.connection.get_candles(
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        start_time=current_start,
-                        limit=1000  # Maximum candles per request
-                    )
+                    # Try History API first
+                    try:
+                        history = await self.history_api.get_candles(
+                            account_id=self.account_id,
+                            symbol=symbol,
+                            timeframe=timeframe,
+                            start_time=current_start,
+                            end_time=current_end
+                        )
+                    except Exception as history_error:
+                        print(f"     History API failed, trying terminal state: {history_error}")
+                        # Fallback to terminal state
+                        if not hasattr(self, 'streaming_connection'):
+                            self.streaming_connection = self.account.get_streaming_connection()
+                            await self.streaming_connection.connect()
+                            await self.streaming_connection.wait_synchronized()
+                        
+                        terminal_state = self.streaming_connection.terminal_state
+                        history = terminal_state.candles
+                        
+                        # Filter candles by symbol and timeframe
+                        if history:
+                            history = [c for c in history.values() 
+                                     if c.get('symbol') == symbol]
 
                     if history:
                         all_candles.extend(history)
@@ -106,8 +121,11 @@ class MetaAPIDataDownloader:
             # Convert to DataFrame
             data = []
             for candle in all_candles:
-                # MetaAPI candle format
-                time_obj = candle['time']
+                # MetaAPI History API candle format
+                if isinstance(candle['time'], str):
+                    time_obj = datetime.fromisoformat(candle['time'].replace('Z', '+00:00'))
+                else:
+                    time_obj = candle['time']
 
                 data.append({
                     'Date': time_obj.strftime('%Y-%m-%d'),
