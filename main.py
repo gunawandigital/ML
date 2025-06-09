@@ -28,11 +28,28 @@ def show_menu():
 
 def run_pipeline():
     """Executes the complete trading pipeline."""
-    # Check if data file exists
-    if not os.path.exists('data/xauusd_m15.csv'):
-        print("\nError: Data file 'data/xauusd_m15.csv' not found!")
-        print("Please ensure the data file exists before running the system.")
+    # Check for best available data file (prioritize combined > real > sample)
+    data_files = [
+        ('data/xauusd_m15_combined.csv', 'COMBINED (Real + Sample)'),
+        ('data/xauusd_m15_real.csv', 'REAL MetaAPI'),
+        ('data/xauusd_m15.csv', 'SAMPLE')
+    ]
+    
+    selected_data = None
+    data_type = None
+    
+    for data_path, desc in data_files:
+        if os.path.exists(data_path):
+            selected_data = data_path
+            data_type = desc
+            break
+    
+    if not selected_data:
+        print("\nError: No data files found!")
+        print("Please download data first using option 2 (Download Real Data from MetaAPI)")
         return
+    
+    print(f"\n📊 Using {data_type} data: {selected_data}")
 
     try:
         # Step 1: Feature Engineering Test
@@ -40,7 +57,7 @@ def run_pipeline():
         from feature_engineering import prepare_data
 
         print("Testing feature engineering...")
-        data = prepare_data('data/xauusd_m15.csv')
+        data = prepare_data(selected_data)
         print(f"✓ Features created successfully! Data shape: {data.shape}")
         print(f"✓ Target distribution:\n{data['Target'].value_counts()}")
 
@@ -48,8 +65,8 @@ def run_pipeline():
         print_header("STEP 2: MODEL TRAINING")
         from train import train_model
 
-        print("Training Random Forest model...")
-        model, scaler, accuracy = train_model()
+        print(f"Training Random Forest model with {data_type} data...")
+        model, scaler, accuracy = train_model(data_path=selected_data)
         print(f"✓ Model trained successfully! Accuracy: {accuracy:.4f}")
 
         # Step 3: Latest Prediction
@@ -57,7 +74,7 @@ def run_pipeline():
         from predict import get_latest_signal
 
         print("Getting latest trading signal...")
-        signal = get_latest_signal()
+        signal = get_latest_signal(data_path=selected_data)
 
         print("\n📊 LATEST TRADING SIGNAL")
         print(f"   Timestamp: {signal['timestamp']}")
@@ -123,21 +140,108 @@ def main():
 
             elif choice == "3":
                 print_header("FEATURE ENGINEERING")
+                
+                # Auto-select best data
+                data_files = [
+                    'data/xauusd_m15_combined.csv',
+                    'data/xauusd_m15_real.csv', 
+                    'data/xauusd_m15.csv'
+                ]
+                
+                selected_data = None
+                for data_path in data_files:
+                    if os.path.exists(data_path):
+                        selected_data = data_path
+                        break
+                
+                if not selected_data:
+                    print("❌ No data files found!")
+                    continue
+                
+                print(f"Using data: {selected_data}")
                 from feature_engineering import prepare_data
-                data = prepare_data('data/xauusd_m15.csv')
+                data = prepare_data(selected_data)
                 print(f"✓ Features created: {data.shape}")
 
             elif choice == "4":
                 print_header("MODEL TRAINING")
-                from train import train_model
-                model, scaler, accuracy = train_model()
-                print(f"✓ Model trained: {accuracy:.4f} accuracy")
+                
+                # Check for available data sources
+                data_files = {
+                    'combined': 'data/xauusd_m15_combined.csv',
+                    'real': 'data/xauusd_m15_real.csv', 
+                    'sample': 'data/xauusd_m15.csv'
+                }
+                
+                available_files = {k: v for k, v in data_files.items() if os.path.exists(v)}
+                
+                if not available_files:
+                    print("❌ No data files found!")
+                    continue
+                
+                print("\nAvailable datasets:")
+                for i, (key, path) in enumerate(available_files.items(), 1):
+                    import pandas as pd
+                    try:
+                        df_info = pd.read_csv(path)
+                        rows = len(df_info)
+                        print(f"{i}. {key.upper()} data: {path} ({rows} rows)")
+                    except:
+                        print(f"{i}. {key.upper()} data: {path} (error reading)")
+                
+                print(f"{len(available_files)+1}. Auto-select best data")
+                
+                try:
+                    choice_data = input(f"\nSelect dataset (1-{len(available_files)+1}): ").strip()
+                    
+                    if choice_data == str(len(available_files)+1):
+                        # Auto-select: prioritize combined > real > sample
+                        if 'combined' in available_files:
+                            selected_data = available_files['combined']
+                            data_type = 'COMBINED'
+                        elif 'real' in available_files:
+                            selected_data = available_files['real']
+                            data_type = 'REAL'
+                        else:
+                            selected_data = available_files['sample']
+                            data_type = 'SAMPLE'
+                    else:
+                        idx = int(choice_data) - 1
+                        selected_data = list(available_files.values())[idx]
+                        data_type = list(available_files.keys())[idx].upper()
+                    
+                    print(f"\n🎯 Training with {data_type} data: {selected_data}")
+                    
+                    from train import train_model
+                    model, scaler, accuracy = train_model(data_path=selected_data)
+                    print(f"✓ Model trained with {data_type} data: {accuracy:.4f} accuracy")
+                    
+                except (ValueError, IndexError):
+                    print("❌ Invalid selection, using default data")
+                    from train import train_model
+                    model, scaler, accuracy = train_model()
+                    print(f"✓ Model trained: {accuracy:.4f} accuracy")
 
             elif choice == "5":
                 print_header("LATEST PREDICTION")
+                
+                # Auto-select best data for prediction
+                data_files = [
+                    'data/xauusd_m15_combined.csv',
+                    'data/xauusd_m15_real.csv', 
+                    'data/xauusd_m15.csv'
+                ]
+                
+                selected_data = None
+                for data_path in data_files:
+                    if os.path.exists(data_path):
+                        selected_data = data_path
+                        break
+                
                 from predict import get_latest_signal
-                signal = get_latest_signal()
+                signal = get_latest_signal(data_path=selected_data)
                 print(f"Signal: {signal['signal']} | Confidence: {signal['confidence']:.1%}")
+                print(f"Using data: {selected_data}")
 
             elif choice == "6":
                 print_header("BACKTESTING")
