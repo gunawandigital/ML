@@ -331,22 +331,34 @@ class MetaAPITrader:
     async def check_and_close_positions(self):
         """Check and manage existing positions"""
         try:
-            positions = await self.connection.get_positions()
+            # Use account method to get positions instead of connection
+            account_info = await self.account.get_account_information()
+            positions = account_info.get('positions', [])
+            
+            # Alternative: try terminal state if available
+            if not positions and hasattr(self.connection, 'terminal_state'):
+                terminal_state = self.connection.terminal_state
+                positions = terminal_state.positions if terminal_state else []
             
             for position in positions:
-                if position['symbol'] == self.symbol:
+                if position.get('symbol') == self.symbol:
                     # Generate new signal to check if we should close
                     current_signal = await self.generate_trading_signal()
                     
                     # Close position if signal changed or confidence is low
+                    position_type = position.get('type', '').replace('POSITION_TYPE_', '')
                     should_close = (
-                        current_signal['signal'] != position['type'].replace('POSITION_TYPE_', '') or
+                        current_signal['signal'] != position_type or
                         current_signal['confidence'] < self.confidence_threshold * 0.8
                     )
                     
                     if should_close:
-                        await self.connection.close_position(position['id'])
-                        self.logger.info(f"🔄 Position closed: {position['type']} {position['volume']} lots")
+                        close_request = {
+                            'actionType': 'POSITION_CLOSE_ID',
+                            'positionId': position.get('id'),
+                        }
+                        await self.connection.create_market_order(close_request)
+                        self.logger.info(f"🔄 Position closed: {position_type} {position.get('volume', 0)} lots")
                         self.current_position = None
             
         except Exception as e:
