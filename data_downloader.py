@@ -76,7 +76,7 @@ class MetaAPIDataDownloader:
                 
                 try:
                     # Use the correct method for getting historical candles
-                    candles = await self.connection.get_historical_candles(
+                    candles = await self.connection.get_candles(
                         symbol=symbol,
                         timeframe=timeframe,
                         start_time=current_start,
