@@ -16,9 +16,19 @@ run = ["python3", "main.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
+runButton = "Start Dashboard"
 
 [[workflows.workflow]]
 name = "Web Dashboard"
+author = 37170483
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 web_dashboard.py"
+
+[[workflows.workflow]]
+name = "Start Dashboard"
 author = 37170483
 mode = "sequential"
 

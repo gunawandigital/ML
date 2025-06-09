@@ -603,9 +603,10 @@ if __name__ == '__main__':
     print("🔄 Auto-refresh: 30 seconds")
     print("📋 Health check: /api/health")
     print("📊 System logs: /api/logs")
+    print("=" * 50)
     
     # Load initial data
     load_dashboard_data()
     
-    # Start Flask app
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+    # Start Flask app with proper configuration
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True, use_reloader=False)
