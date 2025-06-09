@@ -19,6 +19,9 @@ requiredFiles = [".replit", "replit.nix"]
 run = ["sh", "-c", "python web_server.py"]
 deploymentTarget = "cloudrun"
 
+[env]
+REPLIT_DISABLE_PACKAGE_LAYER = "1"
+
 [workflows]
 runButton = "Run Trading System"
 
