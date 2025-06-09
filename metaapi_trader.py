@@ -105,6 +105,7 @@ class MetaAPITrader:
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=count * 2)
             
+            # Use correct MetaAPI method
             candles = await self.connection.get_historical_candles(
                 symbol=self.symbol,
                 timeframe=timeframe,
