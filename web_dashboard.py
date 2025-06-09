@@ -599,7 +599,29 @@ def api_stop_trading():
 
 if __name__ == '__main__':
     print("🌐 Starting Enhanced Forex Trading Dashboard...")
-    print("📊 Dashboard URL: http://0.0.0.0:5000")
+    
+    # Try different ports if 5000 is in use
+    ports_to_try = [5000, 8080, 8000, 3000]
+    port_used = None
+    
+    for port in ports_to_try:
+        try:
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex(('0.0.0.0', port))
+            sock.close()
+            
+            if result != 0:  # Port is available
+                port_used = port
+                break
+        except:
+            continue
+    
+    if not port_used:
+        port_used = 8080  # Default fallback
+    
+    print(f"📊 Dashboard URL: http://0.0.0.0:{port_used}")
     print("🔄 Auto-refresh: 30 seconds")
     print("📋 Health check: /api/health")
     print("📊 System logs: /api/logs")
@@ -609,4 +631,11 @@ if __name__ == '__main__':
     load_dashboard_data()
     
     # Start Flask app with proper configuration
-    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True, use_reloader=False)
+    try:
+        app.run(host='0.0.0.0', port=port_used, debug=False, threaded=True, use_reloader=False)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print(f"❌ Port {port_used} is still in use. Trying port 9000...")
+            app.run(host='0.0.0.0', port=9000, debug=False, threaded=True, use_reloader=False)
+        else:
+            raise e
