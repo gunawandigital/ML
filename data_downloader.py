@@ -34,14 +34,16 @@ class MetaAPIDataDownloader:
             self.api = MetaApi(self.token)
             self.account = await self.api.metatrader_account_api.get_account(self.account_id)
             
+            # Deploy and wait for connection
             await self.account.deploy()
             await self.account.wait_connected()
             
-            self.connection = self.account.get_streaming_connection()
+            # For historical data, we need RPC connection, not streaming
+            self.connection = self.account.get_rpc_connection()
             await self.connection.connect()
             await self.connection.wait_synchronized()
             
-            print("✅ MetaAPI connection established for data download")
+            print("✅ MetaAPI RPC connection established for data download")
             return True
             
         except Exception as e:
@@ -75,23 +77,28 @@ class MetaAPIDataDownloader:
                 print(f"   Downloading chunk: {current_start.strftime('%Y-%m-%d')} to {current_end.strftime('%Y-%m-%d')}")
                 
                 try:
-                    # Use the correct method for getting historical candles
-                    candles = await self.connection.get_candles(
+                    # Use HistoryStorage API for historical data
+                    history_storage = self.connection.history_storage
+                    
+                    candles = await history_storage.get_candles(
                         symbol=symbol,
                         timeframe=timeframe,
                         start_time=current_start,
-                        limit=1000  # MetaAPI limit per request
+                        end_time=current_end
                     )
                     
                     if candles:
                         all_candles.extend(candles)
                         print(f"     Downloaded {len(candles)} candles")
+                    else:
+                        print(f"     No data available for this period")
                     
                     # Small delay to avoid rate limits
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2)
                     
                 except Exception as e:
                     print(f"     Error downloading chunk: {e}")
+                    # Continue with next chunk instead of stopping
                 
                 current_start = current_end
             

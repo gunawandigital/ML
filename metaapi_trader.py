@@ -71,15 +71,15 @@ class MetaAPITrader:
             await self.account.deploy()
             await self.account.wait_connected()
             
-            # Create connection
-            self.connection = self.account.get_streaming_connection()
+            # Create RPC connection for trading and data
+            self.connection = self.account.get_rpc_connection()
             await self.connection.connect()
             await self.connection.wait_synchronized()
             
             # Load ML model
             self.model, self.scaler = load_model()
             
-            self.logger.info("✅ MetaAPI connection established successfully!")
+            self.logger.info("✅ MetaAPI RPC connection established successfully!")
             self.logger.info(f"✅ Account balance: ${await self.get_account_balance():.2f}")
             self.logger.info("✅ ML model loaded successfully!")
             
@@ -101,16 +101,22 @@ class MetaAPITrader:
     async def get_real_time_data(self, timeframe: str = "M15", count: int = 100) -> pd.DataFrame:
         """Get real-time OHLC data from MetaTrader"""
         try:
-            # Get historical data
+            # Get historical data using HistoryStorage
             end_time = datetime.now()
-            start_time = end_time - timedelta(hours=count)
+            start_time = end_time - timedelta(hours=count * 2)  # Get more data to ensure we have enough
             
-            candles = await self.connection.get_candles(
+            history_storage = self.connection.history_storage
+            
+            candles = await history_storage.get_candles(
                 symbol=self.symbol,
                 timeframe=timeframe,
                 start_time=start_time,
-                limit=count
+                end_time=end_time
             )
+            
+            # Take only the last 'count' candles
+            if len(candles) > count:
+                candles = candles[-count:]
             
             # Convert to DataFrame
             data = []
@@ -231,14 +237,15 @@ class MetaAPITrader:
                 take_profit = current_price - (self.take_profit_pips * pip_size)
                 action = 'ORDER_TYPE_SELL'
             
-            # Place order
+            # Place order using correct MetaAPI format
             order_request = {
                 'actionType': action,
                 'symbol': self.symbol,
                 'volume': position_size,
                 'stopLoss': stop_loss,
                 'takeProfit': take_profit,
-                'comment': f"ML-Signal-{signal['confidence']:.1%}"
+                'comment': f"ML-Signal-{signal['confidence']:.1%}",
+                'clientId': f"ml-trade-{int(datetime.now().timestamp())}"
             }
             
             result = await self.connection.create_market_order(order_request)
