@@ -76,15 +76,12 @@ class MetaAPIDataDownloader:
                 print(f"   Downloading chunk: {current_start.strftime('%Y-%m-%d')} to {current_end.strftime('%Y-%m-%d')}")
 
                 try:
-                    # Use MetaAPI terminal state to get historical candles
-                    terminal_state = self.connection.terminal_state
-
-                    # Get candles using terminal state
-                    history = await terminal_state.get_candles(
+                    # Use MetaAPI RPC connection to get historical candles
+                    history = await self.connection.get_candles(
                         symbol=symbol,
                         timeframe=timeframe,
                         start_time=current_start,
-                        end_time=current_end
+                        limit=1000  # Maximum candles per request
                     )
 
                     if history:

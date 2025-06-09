@@ -105,13 +105,12 @@ class MetaAPITrader:
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=count * 2)
             
-            # Use terminal state to get candles
-            terminal_state = self.connection.terminal_state
-            candles = await terminal_state.get_candles(
+            # Use RPC connection to get candles
+            candles = await self.connection.get_candles(
                 symbol=self.symbol,
                 timeframe=timeframe,
                 start_time=start_time,
-                end_time=end_time
+                limit=count
             )
             
             # Take only the last 'count' candles
