@@ -105,11 +105,11 @@ class MetaAPITrader:
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=count)
             
-            candles = await self.connection.get_candles(
+            candles = await self.connection.get_historical_candles(
                 symbol=self.symbol,
                 timeframe=timeframe,
                 start_time=start_time,
-                count=count
+                limit=count
             )
             
             # Convert to DataFrame
