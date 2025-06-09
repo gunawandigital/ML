@@ -516,6 +516,87 @@ def api_backtest():
             'timestamp': datetime.now().isoformat()
         })
 
+@app.route('/api/trading/start', methods=['POST'])
+def api_start_trading():
+    """API endpoint to start live trading"""
+    try:
+        import subprocess
+        import sys
+        
+        # Check if live trading is already running
+        live_trading_active, message = check_live_trading_status()
+        if live_trading_active:
+            return jsonify({
+                'success': False,
+                'error': 'Live trading is already running',
+                'message': message,
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        # Start live trading in background
+        process = subprocess.Popen([
+            sys.executable, "run_live_trading.py"
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Live trading started successfully',
+            'process_id': process.pid,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        })
+
+@app.route('/api/trading/stop', methods=['POST'])
+def api_stop_trading():
+    """API endpoint to stop live trading"""
+    try:
+        import psutil
+        import signal
+        
+        stopped_processes = 0
+        
+        # Find and stop live trading processes
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = ' '.join(proc.info['cmdline'] or [])
+                if 'run_live_trading.py' in cmdline and proc.is_running():
+                    proc.send_signal(signal.SIGTERM)
+                    stopped_processes += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        if stopped_processes > 0:
+            return jsonify({
+                'success': True,
+                'message': f'Stopped {stopped_processes} live trading process(es)',
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'No live trading processes found',
+                'timestamp': datetime.now().isoformat()
+            })
+        
+    except ImportError:
+        return jsonify({
+            'success': False,
+            'error': 'psutil not available - cannot stop processes',
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        })
+
 if __name__ == '__main__':
     print("🌐 Starting Enhanced Forex Trading Dashboard...")
     print("📊 Dashboard URL: http://0.0.0.0:5000")
