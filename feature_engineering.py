@@ -89,6 +89,267 @@ def create_features(df):
     data['ROC_5'] = ((data['Close'] - data['Close'].shift(5)) / data['Close'].shift(5)) * 100
     data['ROC_10'] = ((data['Close'] - data['Close'].shift(10)) / data['Close'].shift(10)) * 100
     
+    # Smart Money Concept (SMC) Features
+    data = add_smart_money_features(data)
+    
+    return data
+
+def add_smart_money_features(data):
+    """Add Smart Money Concept technical indicators"""
+    
+    # 1. Market Structure Analysis
+    data = calculate_market_structure(data)
+    
+    # 2. Order Blocks Detection
+    data = detect_order_blocks(data)
+    
+    # 3. Fair Value Gaps (FVG)
+    data = detect_fair_value_gaps(data)
+    
+    # 4. Liquidity Areas
+    data = calculate_liquidity_areas(data)
+    
+    # 5. Premium/Discount Analysis
+    data = calculate_premium_discount(data)
+    
+    # 6. Break of Structure (BOS)
+    data = detect_break_of_structure(data)
+    
+    return data
+
+def calculate_market_structure(data):
+    """Calculate market structure - Higher Highs, Lower Lows, etc."""
+    
+    # Find swing highs and lows (lookback period = 5)
+    lookback = 5
+    
+    # Swing Highs
+    data['SwingHigh'] = data['High'].rolling(window=lookback*2+1, center=True).max() == data['High']
+    
+    # Swing Lows  
+    data['SwingLow'] = data['Low'].rolling(window=lookback*2+1, center=True).min() == data['Low']
+    
+    # Higher Highs and Lower Lows
+    swing_highs = data[data['SwingHigh']]['High']
+    swing_lows = data[data['SwingLow']]['Low']
+    
+    # Market structure signals
+    data['HigherHigh'] = 0
+    data['LowerLow'] = 0
+    data['HigherLow'] = 0
+    data['LowerHigh'] = 0
+    
+    for i in range(1, len(swing_highs)):
+        if len(swing_highs) > 1:
+            current_high = swing_highs.iloc[i]
+            previous_high = swing_highs.iloc[i-1]
+            
+            idx = swing_highs.index[i]
+            if current_high > previous_high:
+                data.loc[idx, 'HigherHigh'] = 1
+            elif current_high < previous_high:
+                data.loc[idx, 'LowerHigh'] = 1
+    
+    for i in range(1, len(swing_lows)):
+        if len(swing_lows) > 1:
+            current_low = swing_lows.iloc[i]
+            previous_low = swing_lows.iloc[i-1]
+            
+            idx = swing_lows.index[i]
+            if current_low > previous_low:
+                data.loc[idx, 'HigherLow'] = 1
+            elif current_low < previous_low:
+                data.loc[idx, 'LowerLow'] = 1
+    
+    # Market trend classification
+    hh_count = data['HigherHigh'].rolling(20).sum()
+    ll_count = data['LowerLow'].rolling(20).sum()
+    hl_count = data['HigherLow'].rolling(20).sum()
+    lh_count = data['LowerHigh'].rolling(20).sum()
+    
+    # Bullish structure: HH + HL
+    # Bearish structure: LL + LH
+    data['BullishStructure'] = np.where((hh_count + hl_count) > (ll_count + lh_count), 1, 0)
+    data['BearishStructure'] = np.where((ll_count + lh_count) > (hh_count + hl_count), 1, 0)
+    
+    return data
+
+def detect_order_blocks(data):
+    """Detect institutional order blocks (supply/demand zones)"""
+    
+    # Order block detection based on strong moves after consolidation
+    # Strong move = price movement > 2 * ATR
+    atr_period = 14
+    data['ATR'] = data['High'].sub(data['Low']).rolling(atr_period).mean()
+    
+    # Calculate price movements
+    data['PriceMove'] = abs(data['Close'] - data['Open'])
+    data['StrongMove'] = data['PriceMove'] > (2 * data['ATR'])
+    
+    # Bullish Order Block: Strong upward move after consolidation
+    data['BullishOB'] = 0
+    data['BearishOB'] = 0
+    
+    for i in range(5, len(data)):
+        # Look for strong upward moves
+        if (data['StrongMove'].iloc[i] and 
+            data['Close'].iloc[i] > data['Open'].iloc[i] and
+            data['Close'].iloc[i] > data['High'].iloc[i-1]):
+            
+            # Mark the last bearish candle before the move as bullish OB
+            for j in range(i-1, max(0, i-5), -1):
+                if data['Close'].iloc[j] < data['Open'].iloc[j]:
+                    data.iloc[j, data.columns.get_loc('BullishOB')] = 1
+                    break
+        
+        # Look for strong downward moves
+        if (data['StrongMove'].iloc[i] and 
+            data['Close'].iloc[i] < data['Open'].iloc[i] and
+            data['Close'].iloc[i] < data['Low'].iloc[i-1]):
+            
+            # Mark the last bullish candle before the move as bearish OB
+            for j in range(i-1, max(0, i-5), -1):
+                if data['Close'].iloc[j] > data['Open'].iloc[j]:
+                    data.iloc[j, data.columns.get_loc('BearishOB')] = 1
+                    break
+    
+    # Order block proximity (price near order block)
+    data['NearBullishOB'] = 0
+    data['NearBearishOB'] = 0
+    
+    ob_proximity_pips = 10  # 10 pips proximity for XAUUSD
+    
+    for i in range(len(data)):
+        current_price = data['Close'].iloc[i]
+        
+        # Check last 20 periods for order blocks
+        start_idx = max(0, i-20)
+        
+        # Bullish OB proximity
+        bullish_obs = data.iloc[start_idx:i][data.iloc[start_idx:i]['BullishOB'] == 1]
+        if len(bullish_obs) > 0:
+            for _, ob in bullish_obs.iterrows():
+                if abs(current_price - ob['Low']) <= ob_proximity_pips:
+                    data.iloc[i, data.columns.get_loc('NearBullishOB')] = 1
+                    break
+        
+        # Bearish OB proximity
+        bearish_obs = data.iloc[start_idx:i][data.iloc[start_idx:i]['BearishOB'] == 1]
+        if len(bearish_obs) > 0:
+            for _, ob in bearish_obs.iterrows():
+                if abs(current_price - ob['High']) <= ob_proximity_pips:
+                    data.iloc[i, data.columns.get_loc('NearBearishOB')] = 1
+                    break
+    
+    return data
+
+def detect_fair_value_gaps(data):
+    """Detect Fair Value Gaps (FVG) - price imbalances"""
+    
+    data['BullishFVG'] = 0
+    data['BearishFVG'] = 0
+    
+    for i in range(2, len(data)):
+        # Bullish FVG: Low[i] > High[i-2]
+        if data['Low'].iloc[i] > data['High'].iloc[i-2]:
+            data.iloc[i, data.columns.get_loc('BullishFVG')] = 1
+        
+        # Bearish FVG: High[i] < Low[i-2]  
+        if data['High'].iloc[i] < data['Low'].iloc[i-2]:
+            data.iloc[i, data.columns.get_loc('BearishFVG')] = 1
+    
+    return data
+
+def calculate_liquidity_areas(data):
+    """Calculate liquidity sweep areas"""
+    
+    # Recent highs and lows (potential liquidity areas)
+    lookback = 10
+    
+    data['RecentHigh'] = data['High'].rolling(lookback).max()
+    data['RecentLow'] = data['Low'].rolling(lookback).min()
+    
+    # Liquidity sweep detection
+    data['LiquiditySweepHigh'] = 0
+    data['LiquiditySweepLow'] = 0
+    
+    for i in range(lookback, len(data)):
+        recent_high = data['RecentHigh'].iloc[i-1]
+        recent_low = data['RecentLow'].iloc[i-1]
+        
+        # High sweep: price goes above recent high then reverses
+        if (data['High'].iloc[i] > recent_high and 
+            data['Close'].iloc[i] < data['Open'].iloc[i]):
+            data.iloc[i, data.columns.get_loc('LiquiditySweepHigh')] = 1
+        
+        # Low sweep: price goes below recent low then reverses
+        if (data['Low'].iloc[i] < recent_low and 
+            data['Close'].iloc[i] > data['Open'].iloc[i]):
+            data.iloc[i, data.columns.get_loc('LiquiditySweepLow')] = 1
+    
+    return data
+
+def calculate_premium_discount(data):
+    """Calculate if price is in premium or discount relative to range"""
+    
+    # Use recent range (50 periods)
+    range_period = 50
+    
+    data['RangeHigh'] = data['High'].rolling(range_period).max()
+    data['RangeLow'] = data['Low'].rolling(range_period).min()
+    data['RangeMid'] = (data['RangeHigh'] + data['RangeLow']) / 2
+    
+    # Premium/Discount calculation
+    data['Premium'] = np.where(data['Close'] > data['RangeMid'], 1, 0)
+    data['Discount'] = np.where(data['Close'] < data['RangeMid'], 1, 0)
+    
+    # Equilibrium (near mid-point)
+    range_size = data['RangeHigh'] - data['RangeLow']
+    equilibrium_zone = range_size * 0.1  # 10% of range around midpoint
+    
+    data['Equilibrium'] = np.where(
+        abs(data['Close'] - data['RangeMid']) <= equilibrium_zone, 1, 0
+    )
+    
+    return data
+
+def detect_break_of_structure(data):
+    """Detect Break of Structure (BOS) and Change of Character (CHoCH)"""
+    
+    data['BOS_Bullish'] = 0
+    data['BOS_Bearish'] = 0
+    data['CHoCH'] = 0
+    
+    # Simple BOS detection based on breaking recent significant levels
+    lookback = 20
+    
+    for i in range(lookback, len(data)):
+        recent_data = data.iloc[i-lookback:i]
+        significant_high = recent_data['High'].max()
+        significant_low = recent_data['Low'].min()
+        
+        current_high = data['High'].iloc[i]
+        current_low = data['Low'].iloc[i]
+        current_close = data['Close'].iloc[i]
+        
+        # Bullish BOS: break above significant high with strong close
+        if (current_high > significant_high and 
+            current_close > significant_high):
+            data.iloc[i, data.columns.get_loc('BOS_Bullish')] = 1
+        
+        # Bearish BOS: break below significant low with strong close
+        if (current_low < significant_low and 
+            current_close < significant_low):
+            data.iloc[i, data.columns.get_loc('BOS_Bearish')] = 1
+        
+        # Change of Character: opposite structure break
+        recent_bos_bull = recent_data['BOS_Bullish'].sum()
+        recent_bos_bear = recent_data['BOS_Bearish'].sum()
+        
+        if (recent_bos_bull > 0 and data['BOS_Bearish'].iloc[i] == 1) or \
+           (recent_bos_bear > 0 and data['BOS_Bullish'].iloc[i] == 1):
+            data.iloc[i, data.columns.get_loc('CHoCH')] = 1
+    
     return data
 
 def create_target(df, lookahead=5, threshold=0.001):
@@ -205,7 +466,15 @@ def select_features(df):
         'BB_Position', 'MACD', 'MACD_Histogram',
         'Stoch_K', 'Stoch_D',
         'Hour', 'DayOfWeek', 'IsLondonSession', 'IsNYSession',
-        'ROC_5', 'ROC_10'
+        'ROC_5', 'ROC_10',
+        
+        # Smart Money Concept (SMC) features
+        'BullishStructure', 'BearishStructure',
+        'BullishOB', 'BearishOB', 'NearBullishOB', 'NearBearishOB',
+        'BullishFVG', 'BearishFVG',
+        'LiquiditySweepHigh', 'LiquiditySweepLow',
+        'Premium', 'Discount', 'Equilibrium',
+        'BOS_Bullish', 'BOS_Bearish', 'CHoCH'
     ]
     
     # Only include volume features if available
