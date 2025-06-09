@@ -101,12 +101,15 @@ class MetaAPITrader:
     async def get_real_time_data(self, timeframe: str = "M15", count: int = 100) -> pd.DataFrame:
         """Get real-time OHLC data from MetaTrader"""
         try:
-            # Get historical data using correct MetaAPI method
-            candles = await self.connection.get_candles(
+            # Get historical data using MetaAPI history API
+            end_time = datetime.now()
+            start_time = end_time - timedelta(hours=count * 2)
+            
+            candles = await self.connection.get_historical_candles(
                 symbol=self.symbol,
                 timeframe=timeframe,
-                start_time=datetime.now() - timedelta(hours=count * 2),
-                limit=count
+                start_time=start_time,
+                end_time=end_time
             )
             
             # Take only the last 'count' candles

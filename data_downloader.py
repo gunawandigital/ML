@@ -38,10 +38,15 @@ class MetaAPIDataDownloader:
             await self.account.deploy()
             await self.account.wait_connected()
             
-            # For historical data, we need RPC connection, not streaming
-            self.connection = self.account.get_rpc_connection()
+            # Try streaming connection for historical data
+            self.connection = self.account.get_streaming_connection()
             await self.connection.connect()
             await self.connection.wait_synchronized()
+            
+            # Also get RPC connection as backup
+            self.rpc_connection = self.account.get_rpc_connection()
+            await self.rpc_connection.connect()
+            await self.rpc_connection.wait_synchronized()
             
             print("✅ MetaAPI RPC connection established for data download")
             return True
@@ -77,17 +82,20 @@ class MetaAPIDataDownloader:
                 print(f"   Downloading chunk: {current_start.strftime('%Y-%m-%d')} to {current_end.strftime('%Y-%m-%d')}")
                 
                 try:
-                    # Use the correct MetaAPI method for historical data
-                    candles = await self.connection.get_candles(
+                    # Wait for terminal state
+                    terminal_state = self.connection.terminal_state
+                    
+                    # Use account history storage
+                    history = await terminal_state.get_candles(
                         symbol=symbol,
                         timeframe=timeframe,
                         start_time=current_start,
-                        limit=1000  # MetaAPI limit per request
+                        end_time=current_end
                     )
                     
-                    if candles:
-                        all_candles.extend(candles)
-                        print(f"     Downloaded {len(candles)} candles")
+                    if history:
+                        all_candles.extend(history)
+                        print(f"     Downloaded {len(history)} candles")
                     else:
                         print(f"     No data available for this period")
                     
