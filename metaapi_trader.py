@@ -72,24 +72,66 @@ class MetaAPITrader:
                 self.logger.info("🔧 Try retraining the model with current scikit-learn version")
                 return False
             
-            # Initialize MetaAPI with retries
+            # Initialize MetaAPI with improved error handling
             max_retries = 3
             for attempt in range(max_retries):
                 try:
                     self.logger.info(f"🔌 Attempting MetaAPI connection (attempt {attempt + 1}/{max_retries})...")
                     
-                    # Initialize MetaAPI
-                    self.api = MetaApi(self.token)
+                    # Initialize MetaAPI with connection options
+                    self.api = MetaApi(self.token, {
+                        'domain': 'agiliumtrade.agiliumtrade.ai',
+                        'requestTimeout': 60000,
+                        'connectTimeout': 60000,
+                        'packetOrderingTimeout': 60000
+                    })
+                    
                     self.account = await self.api.metatrader_account_api.get_account(self.account_id)
                     
-                    # Wait for account deployment with longer timeout
-                    await asyncio.wait_for(self.account.deploy(), timeout=60)
-                    await asyncio.wait_for(self.account.wait_connected(), timeout=120)
+                    # Check account state before deploying
+                    account_info = await self.account.get_account_information()
+                    self.logger.info(f"Account state: {account_info.get('connectionStatus', 'unknown')}")
                     
-                    # Create streaming connection for trading and data
+                    # Deploy with shorter timeout
+                    if account_info.get('state') != 'DEPLOYED':
+                        await asyncio.wait_for(self.account.deploy(), timeout=30)
+                    
+                    # Wait for connection with retry logic
+                    connection_attempts = 0
+                    max_connection_attempts = 5
+                    
+                    while connection_attempts < max_connection_attempts:
+                        try:
+                            await asyncio.wait_for(self.account.wait_connected(), timeout=60)
+                            break
+                        except asyncio.TimeoutError:
+                            connection_attempts += 1
+                            self.logger.warning(f"Connection attempt {connection_attempts} timed out")
+                            if connection_attempts < max_connection_attempts:
+                                await asyncio.sleep(10)
+                            else:
+                                raise
+                    
+                    # Create streaming connection with error handling
                     self.connection = self.account.get_streaming_connection()
-                    await asyncio.wait_for(self.connection.connect(), timeout=60)
-                    await asyncio.wait_for(self.connection.wait_synchronized(), timeout=300)
+                    await asyncio.wait_for(self.connection.connect(), timeout=30)
+                    
+                    # Wait for synchronization with timeout
+                    sync_attempts = 0
+                    max_sync_attempts = 3
+                    
+                    while sync_attempts < max_sync_attempts:
+                        try:
+                            await asyncio.wait_for(self.connection.wait_synchronized(), timeout=120)
+                            break
+                        except asyncio.TimeoutError:
+                            sync_attempts += 1
+                            self.logger.warning(f"Synchronization attempt {sync_attempts} timed out")
+                            if sync_attempts < max_sync_attempts:
+                                await asyncio.sleep(15)
+                            else:
+                                self.logger.warning("Synchronization timeout, proceeding anyway")
+                                break
                     
                     self.logger.info("✅ MetaAPI connection established successfully!")
                     
@@ -101,16 +143,18 @@ class MetaAPITrader:
                     
                 except asyncio.TimeoutError:
                     self.logger.warning(f"⏰ Connection timeout on attempt {attempt + 1}")
+                    await self.cleanup_failed_connection()
                     if attempt < max_retries - 1:
-                        await asyncio.sleep(5)  # Wait before retry
+                        await asyncio.sleep(10)
                         continue
                     else:
                         self.logger.error("❌ All connection attempts failed due to timeout")
                         return False
                 except Exception as conn_error:
                     self.logger.warning(f"⚠️ Connection error on attempt {attempt + 1}: {conn_error}")
+                    await self.cleanup_failed_connection()
                     if attempt < max_retries - 1:
-                        await asyncio.sleep(5)  # Wait before retry
+                        await asyncio.sleep(10)
                         continue
                     else:
                         self.logger.error(f"❌ All connection attempts failed: {conn_error}")
@@ -121,6 +165,15 @@ class MetaAPITrader:
         except Exception as e:
             self.logger.error(f"❌ Initialization failed: {e}")
             return False
+    
+    async def cleanup_failed_connection(self):
+        """Clean up failed connection attempts"""
+        try:
+            if self.connection:
+                await self.connection.close()
+                self.connection = None
+        except:
+            pass
     
     async def get_account_balance(self) -> float:
         """Get current account balance"""
@@ -194,7 +247,7 @@ class MetaAPITrader:
                     'error': 'No real-time data available'
                 }
             
-            # Prepare features
+            # Prepare features with improved error handling
             try:
                 # Save DataFrame to temporary file for processing
                 temp_file = 'temp_realtime_data.csv'
@@ -206,7 +259,7 @@ class MetaAPITrader:
                     os.remove(temp_file)
             except Exception as feat_error:
                 self.logger.error(f"Feature processing error: {feat_error}")
-                current_price = df['Close'].iloc[-1] if len(df) > 0 and 'Close' in df.columns else 2650.0
+                current_price = float(df['Close'].iloc[-1]) if len(df) > 0 and 'Close' in df.columns else 2650.0
                 return {
                     'signal': 'HOLD', 
                     'confidence': 0.0, 
@@ -216,7 +269,7 @@ class MetaAPITrader:
                 }
             
             if processed_data.empty:
-                current_price = df['Close'].iloc[-1] if len(df) > 0 and 'Close' in df.columns else 2650.0
+                current_price = float(df['Close'].iloc[-1]) if len(df) > 0 and 'Close' in df.columns else 2650.0
                 return {
                     'signal': 'HOLD', 
                     'confidence': 0.0, 
@@ -228,18 +281,37 @@ class MetaAPITrader:
             latest_data = processed_data.iloc[-1:].copy()
             features = select_features(latest_data)
             
+            # Convert to numpy arrays to ensure compatibility
+            features_array = np.array(features, dtype=np.float64)
+            
+            # Handle any NaN or infinite values
+            if np.any(np.isnan(features_array)) or np.any(np.isinf(features_array)):
+                self.logger.warning("NaN or infinite values detected in features, using default signal")
+                current_price = float(latest_data['Close'].iloc[0])
+                return {
+                    'signal': 'HOLD',
+                    'confidence': 0.0,
+                    'current_price': current_price,
+                    'timestamp': datetime.now(),
+                    'error': 'Invalid feature values detected'
+                }
+            
             # Scale features and predict
-            features_scaled = self.scaler.transform(features)
+            features_scaled = self.scaler.transform(features_array)
             prediction = self.model.predict(features_scaled)[0]
             prediction_proba = self.model.predict_proba(features_scaled)[0]
             
-            # Get current price
-            current_price = latest_data['Close'].iloc[0]
+            # Get current price with numpy conversion
+            current_price = float(latest_data['Close'].iloc[0])
             current_time = datetime.now()
             
+            # Convert prediction to int for mapping
+            prediction = int(prediction)
             signal_map = {-1: 'SELL', 0: 'HOLD', 1: 'BUY'}
-            signal = signal_map[prediction]
-            confidence = max(prediction_proba)
+            signal = signal_map.get(prediction, 'HOLD')
+            
+            # Convert confidence to float
+            confidence = float(np.max(prediction_proba))
             
             return {
                 'signal': signal,
@@ -248,9 +320,9 @@ class MetaAPITrader:
                 'current_price': current_price,
                 'timestamp': current_time,
                 'probabilities': {
-                    'sell': prediction_proba[0] if len(prediction_proba) > 2 else 0,
-                    'hold': prediction_proba[1] if len(prediction_proba) > 2 else prediction_proba[0],
-                    'buy': prediction_proba[2] if len(prediction_proba) > 2 else prediction_proba[1]
+                    'sell': float(prediction_proba[0]) if len(prediction_proba) > 2 else 0.0,
+                    'hold': float(prediction_proba[1]) if len(prediction_proba) > 2 else float(prediction_proba[0]),
+                    'buy': float(prediction_proba[2]) if len(prediction_proba) > 2 else float(prediction_proba[1])
                 }
             }
             
@@ -402,15 +474,30 @@ class MetaAPITrader:
         
         connection_errors = 0
         max_connection_errors = 5
+        reconnect_attempts = 0
+        max_reconnect_attempts = 3
         
         try:
             while self.is_trading:
                 try:
-                    # Check connection health
-                    if self.connection and hasattr(self.connection, 'is_connected'):
-                        if not self.connection.is_connected():
-                            self.logger.warning("⚠️ Connection lost, attempting to reconnect...")
-                            await self.initialize()
+                    # Enhanced connection health check
+                    connection_healthy = await self.check_connection_health()
+                    
+                    if not connection_healthy:
+                        self.logger.warning("⚠️ Connection unhealthy, attempting to reconnect...")
+                        
+                        if reconnect_attempts < max_reconnect_attempts:
+                            reconnect_attempts += 1
+                            if await self.initialize():
+                                self.logger.info("✅ Reconnection successful")
+                                reconnect_attempts = 0
+                            else:
+                                self.logger.warning(f"❌ Reconnection failed (attempt {reconnect_attempts})")
+                                await asyncio.sleep(30)  # Wait before retry
+                                continue
+                        else:
+                            self.logger.error("❌ Max reconnection attempts reached, stopping trading")
+                            break
                     
                     # Generate trading signal
                     signal = await self.generate_trading_signal()
@@ -428,6 +515,7 @@ class MetaAPITrader:
                                 self.last_signal_time = signal['timestamp']
                         
                         connection_errors = 0  # Reset error counter on success
+                        reconnect_attempts = 0  # Reset reconnect counter on success
                     else:
                         self.logger.warning(f"⚠️ Signal generation error: {signal.get('error', 'Unknown error')}")
                         connection_errors += 1
@@ -453,6 +541,26 @@ class MetaAPITrader:
             self.logger.error(f"❌ Trading loop error: {e}")
         finally:
             self.is_trading = False
+    
+    async def check_connection_health(self) -> bool:
+        """Check if connection is healthy"""
+        try:
+            if not self.connection:
+                return False
+            
+            # Try to get account info as a health check
+            account_info = await asyncio.wait_for(
+                self.connection.get_account_information(), 
+                timeout=10
+            )
+            return account_info is not None
+            
+        except asyncio.TimeoutError:
+            self.logger.warning("Connection health check timed out")
+            return False
+        except Exception as e:
+            self.logger.warning(f"Connection health check failed: {e}")
+            return False
     
     def stop_trading(self):
         """Stop automated trading"""
