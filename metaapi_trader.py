@@ -387,11 +387,11 @@ class MetaAPITrader:
             if order_type == 'BUY':
                 stop_loss = current_price - (self.stop_loss_pips * pip_size)
                 take_profit = current_price + (self.take_profit_pips * pip_size)
-                action = 'ORDER_TYPE_BUY'
+                action = 'ORDER_TYPE_BUY_MARKET'
             else:  # SELL
                 stop_loss = current_price + (self.stop_loss_pips * pip_size)
                 take_profit = current_price - (self.take_profit_pips * pip_size)
-                action = 'ORDER_TYPE_SELL'
+                action = 'ORDER_TYPE_SELL_MARKET'
             
             # Place order using correct MetaAPI format
             order_request = {
