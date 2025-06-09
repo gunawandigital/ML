@@ -1,4 +1,3 @@
-
 from flask import Flask, render_template, jsonify, request
 import pandas as pd
 import json
@@ -27,15 +26,15 @@ dashboard_data = {
 def load_dashboard_data():
     """Load dashboard data safely"""
     global dashboard_data
-    
+
     try:
         # Load trading config
         config = TradingConfig()
-        
+
         # Check if model exists
         if os.path.exists('models/random_forest_model.pkl'):
             dashboard_data['model_status'] = 'Loaded'
-            
+
             # Get latest signal if data exists
             try:
                 if os.path.exists('data/xauusd_m15_real.csv'):
@@ -64,12 +63,12 @@ def load_dashboard_data():
                 'current_price': 0.0,
                 'timestamp': datetime.now()
             }
-        
+
         # Set demo balance
         dashboard_data['balance'] = 5000.0
         dashboard_data['last_update'] = datetime.now()
         dashboard_data['error_message'] = None
-        
+
     except Exception as e:
         dashboard_data['error_message'] = str(e)
         dashboard_data['last_update'] = datetime.now()
@@ -78,7 +77,20 @@ def load_dashboard_data():
 def dashboard():
     """Main dashboard page"""
     load_dashboard_data()
-    return render_template('dashboard.html', data=dashboard_data)
+    
+    # Create dummy data for signals and performance
+    signals = {'signal': 'BUY', 'confidence': 0.8}
+    performance = {'roi': 0.1, 'drawdown': 0.05}
+
+    # Check if live trading is running
+    trading_status = "STOPPED"  # You can implement actual status check
+
+    return render_template('dashboard.html', 
+                         data=dashboard_data,
+                         signals=signals, 
+                         performance=performance,
+                         trading_status=trading_status,
+                         timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
 @app.route('/api/status')
 def api_status():
@@ -156,9 +168,9 @@ if __name__ == '__main__':
     print("🌐 Starting Forex Trading Dashboard...")
     print("📊 Dashboard will be available at: http://0.0.0.0:5000")
     print("🔄 Auto-refresh every 30 seconds")
-    
+
     # Load initial data
     load_dashboard_data()
-    
+
     # Start Flask app
     app.run(host='0.0.0.0', port=5000, debug=False)

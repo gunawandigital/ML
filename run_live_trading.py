@@ -70,7 +70,15 @@ async def main():
         print("   - Real money trades will be executed")
         print("   - Press Ctrl+C to stop trading anytime")
         
-        confirm = input("\nStart automated trading? (yes/no): ").lower()
+        # Auto-confirm for deployment mode
+        import os
+        auto_mode = os.getenv("AUTO_TRADING", "false").lower() == "true"
+        
+        if auto_mode:
+            print("\n🤖 AUTO-TRADING MODE ENABLED")
+            confirm = "yes"
+        else:
+            confirm = input("\nStart automated trading? (yes/no): ").lower()
         
         if confirm in ['yes', 'y']:
             print("\n🚀 Starting automated trading...")
