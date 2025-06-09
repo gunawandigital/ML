@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import joblib
+import os
 from feature_engineering import prepare_data
 
 def select_features(df):
@@ -41,9 +42,32 @@ def select_features(df):
     
     return df[available_features]
 
-def backtest_strategy(data_path='data/xauusd_m15.csv', model_path='models/', 
+def backtest_strategy(data_path=None, model_path='models/', 
                      initial_capital=10000, position_size=0.1, transaction_cost=0.0001):
-    """Backtest the trading strategy"""
+    """Backtest the trading strategy using real MetaAPI data when available"""
+    
+    # Auto-select best available data (prioritize real data)
+    if data_path is None:
+        data_files = [
+            ('data/xauusd_m15_combined.csv', 'COMBINED (Real + Sample)'),
+            ('data/xauusd_m15_real.csv', 'REAL MetaAPI'),
+            ('data/xauusd_m15.csv', 'SAMPLE')
+        ]
+        
+        selected_data = None
+        data_type = None
+        
+        for path, desc in data_files:
+            if os.path.exists(path):
+                selected_data = path
+                data_type = desc
+                break
+        
+        if not selected_data:
+            raise FileNotFoundError("No data files found!")
+        
+        data_path = selected_data
+        print(f"📊 Backtesting with {data_type} data: {data_path}")
     
     # Load model and scaler
     model = joblib.load(f'{model_path}/random_forest_model.pkl')
@@ -197,11 +221,24 @@ def plot_equity_curve(equity_df, backtest_data):
 
 if __name__ == "__main__":
     try:
-        # Run backtest
+        # Run backtest (will auto-select best data)
         equity_df, trades_df = backtest_strategy()
         
+        # Get the same data path that was used for backtesting
+        data_files = [
+            'data/xauusd_m15_combined.csv',
+            'data/xauusd_m15_real.csv',
+            'data/xauusd_m15.csv'
+        ]
+        
+        selected_data = None
+        for data_path in data_files:
+            if os.path.exists(data_path):
+                selected_data = data_path
+                break
+        
         # Load backtest data for plotting
-        df = prepare_data('data/xauusd_m15.csv')
+        df = prepare_data(selected_data)
         split_point = int(len(df) * 0.3)
         backtest_data = df.iloc[split_point:]
         
