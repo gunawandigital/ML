@@ -5,5 +5,11 @@ scikit-learn>=1.1.0
 matplotlib>=3.5.0
 seaborn>=0.11.0
 joblib>=1.1.0
-TA-Lib>=0.4.25
-ta-lib-easy
+ta>=0.10.2
+joblib
+matplotlib
+numpy
+pandas
+scikit-learn
+seaborn
+ta

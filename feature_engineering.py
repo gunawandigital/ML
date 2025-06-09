@@ -1,15 +1,18 @@
 
 import pandas as pd
 import numpy as np
-import talib
+from ta.trend import EMAIndicator
+from ta.momentum import RSIIndicator
 
 def calculate_ema(data, period):
     """Calculate Exponential Moving Average"""
-    return talib.EMA(data, timeperiod=period)
+    ema = EMAIndicator(close=data, window=period)
+    return ema.ema_indicator()
 
 def calculate_rsi(data, period=14):
     """Calculate Relative Strength Index"""
-    return talib.RSI(data, timeperiod=period)
+    rsi = RSIIndicator(close=data, window=period)
+    return rsi.rsi()
 
 def calculate_returns(data, period=1):
     """Calculate price returns"""
