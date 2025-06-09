@@ -25,7 +25,8 @@ def show_menu():
     print("6. Latest Prediction")
     print("7. Backtesting")
     print("8. MetaAPI Setup")
-    print("9. Exit")
+    print("9. 🚀 START LIVE TRADING")
+    print("10. Exit")
 
 def run_pipeline():
     """Executes the complete trading pipeline."""
@@ -128,7 +129,7 @@ def main():
     while True:
         try:
             show_menu()
-            choice = input("\nSelect option (1-8): ").strip()
+            choice = input("\nSelect option (1-10): ").strip()
 
             if choice == "1":
                 print_header("RUNNING COMPLETE PIPELINE")
@@ -305,11 +306,21 @@ def main():
                     print("💡 This might be due to network connectivity or configuration issues")
 
             elif choice == "9":
+                print_header("🚀 STARTING LIVE AUTOMATED TRADING")
+                try:
+                    import subprocess
+                    subprocess.run([sys.executable, "run_live_trading.py"])
+                except KeyboardInterrupt:
+                    print("\n🛑 Trading interrupted by user")
+                except Exception as e:
+                    print(f"❌ Trading error: {e}")
+
+            elif choice == "10":
                 print("\n👋 Goodbye! Happy trading!")
                 break
 
             else:
-                print("❌ Invalid choice. Please select 1-9.")
+                print("❌ Invalid choice. Please select 1-10.")
 
             input("\nPress Enter to continue...")
 
