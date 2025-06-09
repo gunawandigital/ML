@@ -127,7 +127,7 @@ async def run_demo_trading():
         # Clean up connections
         try:
             await trader.cleanup()
-        except:
+        except Exception:
             pass
 
     except Exception as e:
@@ -249,7 +249,7 @@ async def test_trading_session():
         # Clean up connections
         try:
             await trader.cleanup()
-        except:
+        except Exception:
             pass
 
     except Exception as e:
