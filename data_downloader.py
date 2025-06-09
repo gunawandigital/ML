@@ -37,10 +37,12 @@ class MetaAPIDataDownloader:
             await self.account.deploy()
             await self.account.wait_connected()
 
-            # Use History API for downloading historical data
-            self.history_api = self.api.history_api
+            # Create streaming connection for data access
+            self.connection = self.account.get_streaming_connection()
+            await self.connection.connect()
+            await self.connection.wait_synchronized()
 
-            print("✅ MetaAPI RPC connection established for data download")
+            print("✅ MetaAPI connection established for data download")
             return True
 
         except Exception as e:
@@ -74,30 +76,13 @@ class MetaAPIDataDownloader:
                 print(f"   Downloading chunk: {current_start.strftime('%Y-%m-%d')} to {current_end.strftime('%Y-%m-%d')}")
 
                 try:
-                    # Try History API first
-                    try:
-                        history = await self.history_api.get_candles(
-                            account_id=self.account_id,
-                            symbol=symbol,
-                            timeframe=timeframe,
-                            start_time=current_start,
-                            end_time=current_end
-                        )
-                    except Exception as history_error:
-                        print(f"     History API failed, trying terminal state: {history_error}")
-                        # Fallback to terminal state
-                        if not hasattr(self, 'streaming_connection'):
-                            self.streaming_connection = self.account.get_streaming_connection()
-                            await self.streaming_connection.connect()
-                            await self.streaming_connection.wait_synchronized()
-                        
-                        terminal_state = self.streaming_connection.terminal_state
-                        history = terminal_state.candles
-                        
-                        # Filter candles by symbol and timeframe
-                        if history:
-                            history = [c for c in history.values() 
-                                     if c.get('symbol') == symbol]
+                    # Use streaming connection to get historical data
+                    history = await self.connection.get_candles(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        start_time=current_start,
+                        end_time=current_end
+                    )
 
                     if history:
                         all_candles.extend(history)
