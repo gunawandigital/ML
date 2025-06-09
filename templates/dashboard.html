@@ -308,7 +308,14 @@
                 </div>
                 <div class="metric">
                     <span class="metric-label">Current Price:</span>
-                    <span class="metric-value">${{ "%.2f"|format(data.current_signal.current_price) }}</span>
+                    <span class="metric-value">
+                        ${{ "%.2f"|format(data.current_signal.current_price) }}
+                        {% if data.current_signal.get('price_source') %}
+                            <small style="opacity: 0.7;">
+                                ({{ data.current_signal.price_source }})
+                            </small>
+                        {% endif %}
+                    </span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">Signal Time:</span>
