@@ -55,9 +55,14 @@ class MetaAPIDataDownloader:
 
             logger.info(f"📊 Downloading {days_back} days of {symbol} data...")
 
+            # Calculate approximate number of candles needed
+            # For 15m timeframe: 96 candles per day (24*4)
+            candles_per_day = {'1m': 1440, '5m': 288, '15m': 96, '30m': 48, '1h': 24, '4h': 6, '1d': 1}
+            limit = min(candles_per_day.get(timeframe, 96) * days_back, 1000)  # MetaAPI limit is usually 1000
+
             # Get historical candles
             candles = await self.account.get_historical_candles(
-                symbol, timeframe, start_time, end_time
+                symbol, timeframe, start_time, limit
             )
 
             # Convert to DataFrame
