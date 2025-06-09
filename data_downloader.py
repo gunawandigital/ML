@@ -37,7 +37,12 @@ class MetaAPIDataDownloader:
             await self.account.deploy()
             await self.account.wait_connected()
 
-            # Create streaming connection for data access
+            # Create RPC connection for historical data access
+            self.rpc_connection = self.account.get_rpc_connection()
+            await self.rpc_connection.connect()
+            await self.rpc_connection.wait_synchronized()
+            
+            # Also create streaming connection for other operations
             self.connection = self.account.get_streaming_connection()
             await self.connection.connect()
             await self.connection.wait_synchronized()
@@ -76,13 +81,24 @@ class MetaAPIDataDownloader:
                 print(f"   Downloading chunk: {current_start.strftime('%Y-%m-%d')} to {current_end.strftime('%Y-%m-%d')}")
 
                 try:
-                    # Use streaming connection to get historical data
-                    history = await self.connection.get_candles(
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        start_time=current_start,
-                        end_time=current_end
-                    )
+                    # Try RPC connection for historical data
+                    try:
+                        history = await self.rpc_connection.get_candles(
+                            symbol,
+                            timeframe,
+                            current_start,
+                            current_end
+                        )
+                    except Exception as rpc_error:
+                        print(f"     RPC failed, trying history storage: {rpc_error}")
+                        # Fallback to history storage
+                        history_storage = self.connection.history_storage
+                        history = await history_storage.get_historical_candles(
+                            symbol,
+                            timeframe,
+                            current_start,
+                            current_end
+                        )
 
                     if history:
                         all_candles.extend(history)
