@@ -53,6 +53,42 @@ def create_features(df):
     data['Price_Above_EMA21'] = np.where(data['Close'] > data['EMA_21'], 1, 0)
     data['Price_Above_EMA50'] = np.where(data['Close'] > data['EMA_50'], 1, 0)
     
+    # Advanced technical indicators
+    # Bollinger Bands
+    data['BB_Middle'] = data['Close'].rolling(20).mean()
+    data['BB_Std'] = data['Close'].rolling(20).std()
+    data['BB_Upper'] = data['BB_Middle'] + (2 * data['BB_Std'])
+    data['BB_Lower'] = data['BB_Middle'] - (2 * data['BB_Std'])
+    data['BB_Position'] = (data['Close'] - data['BB_Lower']) / (data['BB_Upper'] - data['BB_Lower'])
+    
+    # MACD
+    data['EMA_12'] = calculate_ema(data['Close'], 12)
+    data['EMA_26'] = calculate_ema(data['Close'], 26)
+    data['MACD'] = data['EMA_12'] - data['EMA_26']
+    data['MACD_Signal'] = calculate_ema(data['MACD'], 9)
+    data['MACD_Histogram'] = data['MACD'] - data['MACD_Signal']
+    
+    # Stochastic Oscillator
+    data['Lowest_Low'] = data['Low'].rolling(14).min()
+    data['Highest_High'] = data['High'].rolling(14).max()
+    data['Stoch_K'] = 100 * (data['Close'] - data['Lowest_Low']) / (data['Highest_High'] - data['Lowest_Low'])
+    data['Stoch_D'] = data['Stoch_K'].rolling(3).mean()
+    
+    # Volume indicators (if volume data available)
+    if 'Volume' in data.columns:
+        data['Volume_SMA'] = data['Volume'].rolling(20).mean()
+        data['Volume_Ratio'] = data['Volume'] / data['Volume_SMA']
+    
+    # Time-based features
+    data['Hour'] = data.index.hour
+    data['DayOfWeek'] = data.index.dayofweek
+    data['IsLondonSession'] = np.where((data['Hour'] >= 8) & (data['Hour'] <= 16), 1, 0)
+    data['IsNYSession'] = np.where((data['Hour'] >= 13) & (data['Hour'] <= 21), 1, 0)
+    
+    # Momentum indicators
+    data['ROC_5'] = ((data['Close'] - data['Close'].shift(5)) / data['Close'].shift(5)) * 100
+    data['ROC_10'] = ((data['Close'] - data['Close'].shift(10)) / data['Close'].shift(10)) * 100
+    
     return data
 
 def create_target(df, lookahead=5, threshold=0.001):
@@ -156,16 +192,30 @@ def generate_sample_data(current_rows):
 def select_features(df):
     """Select relevant features for training/prediction"""
     feature_columns = [
+        # Original features
         'EMA_9', 'EMA_21', 'EMA_50',
         'RSI_14', 'RSI_21',
         'HL_Ratio', 'OC_Ratio',
         'Return_1', 'Return_5', 'Return_15',
         'Volatility_5', 'Volatility_15',
         'EMA_Cross_9_21', 'EMA_Cross_21_50',
-        'Price_Above_EMA9', 'Price_Above_EMA21', 'Price_Above_EMA50'
+        'Price_Above_EMA9', 'Price_Above_EMA21', 'Price_Above_EMA50',
+        
+        # Advanced features
+        'BB_Position', 'MACD', 'MACD_Histogram',
+        'Stoch_K', 'Stoch_D',
+        'Hour', 'DayOfWeek', 'IsLondonSession', 'IsNYSession',
+        'ROC_5', 'ROC_10'
     ]
     
-    return df[feature_columns]
+    # Only include volume features if available
+    if 'Volume_Ratio' in df.columns:
+        feature_columns.append('Volume_Ratio')
+    
+    # Filter out columns that don't exist in the dataframe
+    available_features = [col for col in feature_columns if col in df.columns]
+    
+    return df[available_features]
 
 if __name__ == "__main__":
     # Test the feature engineering
