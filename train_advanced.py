@@ -307,24 +307,106 @@ def compare_models(data_path='data/xauusd_m15_real.csv', model_path='models/'):
 
     return models, best_model_name
 
-if __name__ == "__main__":
-    # Install required packages if not available
+def check_library_dependencies():
+    """Check if all required libraries are available"""
+    missing_libs = []
+    
     try:
         import xgboost
-        import lightgbm
-        import catboost
-    except ImportError as e:
-        print(f"Missing package: {e}")
-        print("Please install with: pip install xgboost lightgbm catboost")
-        exit(1)
+    except ImportError:
+        missing_libs.append("xgboost")
     except Exception as e:
-        if "libgomp" in str(e):
-            print(f"Library linking error: {e}")
-            print("This is a system configuration issue. Trying alternative approach...")
-            print("Please restart the repl after the .replit file update.")
-            exit(1)
-        else:
-            raise e
+        if "libgomp" in str(e) or "shared object" in str(e):
+            return "libgomp_error"
+        missing_libs.append("xgboost (runtime error)")
+    
+    try:
+        import lightgbm
+    except ImportError:
+        missing_libs.append("lightgbm")
+    except Exception as e:
+        if "libgomp" in str(e) or "shared object" in str(e):
+            return "libgomp_error"
+        missing_libs.append("lightgbm (runtime error)")
+    
+    try:
+        import catboost
+    except ImportError:
+        missing_libs.append("catboost")
+    except Exception as e:
+        if "libgomp" in str(e) or "shared object" in str(e):
+            return "libgomp_error"
+        missing_libs.append("catboost (runtime error)")
+    
+    return missing_libs
 
-    models, best_model = compare_models()
-    print(f"\n✅ Model comparison complete")
+def compare_models_safe(data_path='data/xauusd_m15_real.csv', model_path='models/'):
+    """Safe version of compare_models with fallback to RandomForest only"""
+    
+    # Check dependencies first
+    deps_check = check_library_dependencies()
+    
+    if deps_check == "libgomp_error":
+        print("❌ OpenMP library (libgomp) not available")
+        print("🔄 Falling back to Random Forest only...")
+        
+        # Run only Random Forest comparison
+        os.makedirs(model_path, exist_ok=True)
+        
+        print("📊 Loading and preparing data...")
+        df = prepare_data(data_path)
+        
+        X = select_features(df)
+        y = df['Target']
+        
+        print(f"Dataset shape: {X.shape}")
+        print(f"Target distribution:\n{y.value_counts()}")
+        
+        # Split data
+        split_idx = int(len(df) * 0.8)
+        X_train = X.iloc[:split_idx]
+        X_test = X.iloc[split_idx:]
+        y_train = y.iloc[:split_idx]
+        y_test = y.iloc[split_idx:]
+        
+        # Scale features
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # Train only Random Forest
+        rf_result = train_random_forest(X_train_scaled, X_test_scaled, y_train, y_test)
+        
+        models = {'Random Forest': rf_result}
+        
+        print("\n" + "="*60)
+        print("📈 MODEL RESULTS (Random Forest Only)")
+        print("="*60)
+        print(f"Accuracy: {rf_result['accuracy']:.4f}")
+        print(f"CV Score: {rf_result['cv_score']:.4f}")
+        print(f"Training Time: {rf_result['training_time']:.1f}s")
+        print(f"Best Params: {rf_result['best_params']}")
+        
+        # Save model
+        joblib.dump(rf_result['model'], os.path.join(model_path, 'best_model.pkl'))
+        joblib.dump(scaler, os.path.join(model_path, 'best_scaler.pkl'))
+        
+        print(f"\n💾 Model saved to {model_path}")
+        
+        return models, 'Random Forest'
+    
+    elif deps_check:
+        print(f"❌ Missing libraries: {', '.join(deps_check)}")
+        print("📦 Please install with: pip install xgboost lightgbm catboost")
+        return None, None
+    
+    else:
+        # All libraries available, run full comparison
+        return compare_models(data_path, model_path)
+
+if __name__ == "__main__":
+    models, best_model = compare_models_safe()
+    if models:
+        print(f"\n✅ Model comparison complete. Best: {best_model}")
+    else:
+        print("\n❌ Model comparison failed due to missing dependencies")

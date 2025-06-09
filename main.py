@@ -244,25 +244,26 @@ def main():
                     continue
                 
                 print(f"🎯 Comparing models with data: {selected_data}")
-                print("⚠️  This will take 10-20 minutes...")
                 
                 try:
-                    from train_advanced import compare_models
-                    models, best_model = compare_models(data_path=selected_data)
-                    print(f"\n🏆 Best performing model: {best_model}")
-                except ImportError:
-                    print("❌ Advanced models not available. Installing packages...")
-                    print("Please run: pip install xgboost lightgbm catboost")
-                except Exception as e:
-                    error_msg = str(e)
-                    if "libgomp" in error_msg or "shared object file" in error_msg:
-                        print(f"❌ Library linking error: {error_msg}")
-                        print("🔧 System configuration updated. Please:")
-                        print("   1. Stop the current process (Ctrl+C)")
-                        print("   2. Click the 'Stop' button in the console")
-                        print("   3. Click 'Run' again to restart with updated configuration")
+                    from train_advanced import compare_models_safe
+                    print("🔍 Checking system dependencies...")
+                    models, best_model = compare_models_safe(data_path=selected_data)
+                    
+                    if models and best_model:
+                        print(f"\n🏆 Best performing model: {best_model}")
+                        if len(models) == 1:
+                            print("ℹ️  Note: Only Random Forest was tested due to system limitations")
+                            print("   For full comparison, advanced libraries need OpenMP support")
                     else:
-                        print(f"❌ Error in model comparison: {e}")
+                        print("❌ Model comparison could not be completed")
+                        
+                except ImportError as e:
+                    print(f"❌ Import error: {e}")
+                    print("📦 Please ensure all packages are installed")
+                except Exception as e:
+                    print(f"❌ Unexpected error: {e}")
+                    print("🔧 Please check your system configuration")
 
             elif choice == "6":
                 print_header("LATEST PREDICTION")
