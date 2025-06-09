@@ -294,9 +294,15 @@ def main():
 
             elif choice == "8":
                 print_header("METAAPI SETUP")
-                import asyncio
-                from setup_metaapi import main as setup_main
-                asyncio.run(setup_main())
+                try:
+                    import asyncio
+                    from setup_metaapi import main as setup_main
+                    asyncio.run(setup_main())
+                except KeyboardInterrupt:
+                    print("\n🛑 Setup interrupted by user")
+                except Exception as e:
+                    print(f"❌ Setup error: {e}")
+                    print("💡 This might be due to network connectivity or configuration issues")
 
             elif choice == "9":
                 print("\n👋 Goodbye! Happy trading!")

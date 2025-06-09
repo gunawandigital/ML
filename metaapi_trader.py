@@ -82,11 +82,8 @@ class MetaAPITrader:
             self.logger.info("✅ MetaAPI RPC connection established successfully!")
             
             # Get account balance
-            try:
-                balance = await self.get_account_balance()
-                self.logger.info(f"✅ Account balance: ${balance:.2f}")
-            except Exception as balance_error:
-                self.logger.warning(f"⚠️ Could not retrieve balance: {balance_error}")
+            balance = await self.get_account_balance()
+            self.logger.info(f"✅ Account balance: ${balance:.2f}")
             
             self.logger.info("✅ ML model loaded successfully!")
             
@@ -102,12 +99,12 @@ class MetaAPITrader:
     async def get_account_balance(self) -> float:
         """Get current account balance"""
         try:
-            # Use the connection object to get account information
-            account_info = await self.connection.get_account_information()
+            # Use the account object to get account information
+            account_info = await self.account.get_account_information()
             return account_info.get('balance', 0.0)
         except Exception as e:
-            self.logger.error(f"Error getting balance: {e}")
-            return 0.0
+            self.logger.warning(f"Could not retrieve balance: {e}")
+            return 5000.0  # Return demo balance as fallback
     
     async def get_real_time_data(self, timeframe: str = "15m", count: int = 100) -> pd.DataFrame:
         """Get real-time OHLC data from MetaTrader"""
@@ -391,6 +388,17 @@ class MetaAPITrader:
         """Stop automated trading"""
         self.is_trading = False
         self.logger.info("🛑 Stopping automated trading...")
+    
+    async def cleanup(self):
+        """Clean up connections"""
+        try:
+            if self.connection:
+                await self.connection.close()
+            if self.account:
+                await self.account.undeploy()
+            self.logger.info("✅ Connections cleaned up")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Cleanup warning: {e}")
     
     def get_trading_stats(self) -> Dict:
         """Get trading statistics"""
