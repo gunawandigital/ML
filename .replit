@@ -3,7 +3,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "pkg-config", "qhull", "tcl", "tk", "gcc", "libgomp", "glibc", "stdenv", "binutils"]
+packages = ["binutils", "cairo", "ffmpeg-full", "freetype", "gcc", "ghostscript", "glibc", "glibcLocales", "gobject-introspection", "gtk3", "libgomp", "ocl-icd", "opencl-headers", "pkg-config", "qhull", "stdenv", "tcl", "tk"]
 
 [env]
 LD_LIBRARY_PATH = "/nix/store/*-gcc-*/lib64:/nix/store/*-gcc-*/lib:/nix/store/*-glibc-*/lib:/nix/store/*-libgomp-*/lib"
@@ -39,3 +39,16 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python web_dashboard.py"
+
+[[workflows.workflow]]
+name = "Live Trading"
+author = 37170483
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python run_live_trading.py"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
