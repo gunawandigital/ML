@@ -77,11 +77,17 @@ class MetaAPIDataDownloader:
 
                 try:
                     # Use the correct MetaAPI method for historical data
+                    # Calculate number of candles needed for this time period
+                    time_diff = current_end - current_start
+                    hours_diff = time_diff.total_seconds() / 3600
+                    # For M15 timeframe, we have 4 candles per hour
+                    max_candles = min(int(hours_diff * 4) + 10, 1000)  # Add buffer, cap at 1000
+                    
                     history = await self.account.get_historical_candles(
                         symbol,
                         timeframe,
                         current_start,
-                        current_end
+                        limit=max_candles
                     )
 
                     if history:
