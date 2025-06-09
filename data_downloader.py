@@ -35,8 +35,7 @@ class MetaAPIDataDownloader:
             self.account = await self.api.metatrader_account_api.get_account(self.account_id)
 
             # Deploy account if needed
-            account_info = await self.account.get_account_information()
-            if account_info.get('state') != 'DEPLOYED':
+            if self.account.state != 'DEPLOYED':
                 await self.account.deploy()
 
             # Wait for connection
