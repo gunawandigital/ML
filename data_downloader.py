@@ -91,42 +91,44 @@ class MetaAPIDataDownloader:
             logger.error(f"❌ Download failed: {e}")
             return pd.DataFrame()
 
-    async def save_and_combine_data(self, new_data: pd.DataFrame):
-        """Save new data and combine with existing data"""
+    async def save_real_data_only(self, new_data: pd.DataFrame):
+        """Save only real MetaAPI data (no sample data combination)"""
         try:
-            # Save real data
+            # Save real data as primary dataset
             real_file = "data/xauusd_m15_real.csv"
+
+            # Ensure consistent data types
+            for col in ['Open', 'High', 'Low', 'Close']:
+                if col in new_data.columns:
+                    new_data[col] = pd.to_numeric(new_data[col], errors='coerce')
+
+            # Ensure Volume column exists and is numeric
+            if 'Volume' not in new_data.columns:
+                new_data['Volume'] = 0
+            new_data['Volume'] = pd.to_numeric(new_data['Volume'], errors='coerce').fillna(0)
+
+            # Remove duplicates based on Date and Time
+            new_data = new_data.drop_duplicates(subset=['Date', 'Time'])
+
+            # Sort by date and time with proper error handling
+            try:
+                new_data['datetime'] = pd.to_datetime(new_data['Date'] + ' ' + new_data['Time'], format='mixed', errors='coerce')
+            except:
+                # Fallback: try different parsing methods
+                new_data['datetime'] = pd.to_datetime(new_data['Date'] + ' ' + new_data['Time'], errors='coerce')
+
+            # Remove rows with invalid datetime
+            new_data = new_data.dropna(subset=['datetime'])
+            new_data = new_data.sort_values('datetime').drop('datetime', axis=1)
+
+            # Save real data
             new_data.to_csv(real_file, index=False)
-            logger.info(f"✅ Real data saved: {real_file}")
+            logger.info(f"✅ Real MetaAPI data saved: {real_file} ({len(new_data)} rows)")
 
-            # Combine with sample data if available
-            sample_file = "data/xauusd_m15.csv"
-            combined_file = "data/xauusd_m15_combined.csv"
-
-            if os.path.exists(sample_file):
-                sample_data = pd.read_csv(sample_file)
-
-                # Combine datasets
-                combined_data = pd.concat([sample_data, new_data], ignore_index=True)
-
-                # Remove duplicates based on Date and Time
-                combined_data = combined_data.drop_duplicates(subset=['Date', 'Time'])
-
-                # Sort by date and time
-                combined_data['datetime'] = pd.to_datetime(combined_data['Date'] + ' ' + combined_data['Time'])
-                combined_data = combined_data.sort_values('datetime').drop('datetime', axis=1)
-
-                # Save combined data
-                combined_data.to_csv(combined_file, index=False)
-                logger.info(f"✅ Combined data saved: {combined_file} ({len(combined_data)} rows)")
-
-                return combined_data
-            else:
-                logger.warning("Sample data not found, using only real data")
-                return new_data
+            return new_data
 
         except Exception as e:
-            logger.error(f"❌ Save/combine failed: {e}")
+            logger.error(f"❌ Save real data failed: {e}")
             return pd.DataFrame()
 
     async def download_and_retrain(self, days_back: int = 30):
@@ -140,7 +142,7 @@ class MetaAPIDataDownloader:
                 return False
 
             # Save and combine data
-            combined_data = await self.save_and_combine_data(new_data)
+            combined_data = await self.save_real_data_only(new_data)
 
             if combined_data.empty:
                 logger.error("❌ Failed to process data")
@@ -153,7 +155,7 @@ class MetaAPIDataDownloader:
                 from train import train_model
 
                 # Use combined data if available, otherwise real data
-                data_file = "data/xauusd_m15_combined.csv" if os.path.exists("data/xauusd_m15_combined.csv") else "data/xauusd_m15_real.csv"
+                data_file = "data/xauusd_m15_real.csv"
 
                 model, scaler, accuracy = train_model(data_path=data_file)
                 logger.info(f"✅ Model retrained successfully! Accuracy: {accuracy:.4f}")

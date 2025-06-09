@@ -31,11 +31,9 @@ def show_menu():
 
 def run_pipeline():
     """Executes the complete trading pipeline."""
-    # Check for best available data file (prioritize combined > real > sample)
+    # Check for available data file (prioritize real MetaAPI data only)
     data_files = [
-        ('data/xauusd_m15_combined.csv', 'COMBINED (Real + Sample)'),
         ('data/xauusd_m15_real.csv', 'REAL MetaAPI'),
-        ('data/xauusd_m15.csv', 'SAMPLE')
     ]
     
     selected_data = None
@@ -144,11 +142,9 @@ def main():
             elif choice == "3":
                 print_header("FEATURE ENGINEERING")
                 
-                # Auto-select best data
+                # Use only real MetaAPI data
                 data_files = [
-                    'data/xauusd_m15_combined.csv',
-                    'data/xauusd_m15_real.csv', 
-                    'data/xauusd_m15.csv'
+                    'data/xauusd_m15_real.csv'
                 ]
                 
                 selected_data = None
@@ -169,11 +165,9 @@ def main():
             elif choice == "4":
                 print_header("MODEL TRAINING")
                 
-                # Check for available data sources
+                # Check for available data sources (real MetaAPI only)
                 data_files = {
-                    'combined': 'data/xauusd_m15_combined.csv',
-                    'real': 'data/xauusd_m15_real.csv', 
-                    'sample': 'data/xauusd_m15.csv'
+                    'real': 'data/xauusd_m15_real.csv'
                 }
                 
                 available_files = {k: v for k, v in data_files.items() if os.path.exists(v)}
@@ -198,16 +192,13 @@ def main():
                     choice_data = input(f"\nSelect dataset (1-{len(available_files)+1}): ").strip()
                     
                     if choice_data == str(len(available_files)+1):
-                        # Auto-select: prioritize combined > real > sample
-                        if 'combined' in available_files:
-                            selected_data = available_files['combined']
-                            data_type = 'COMBINED'
-                        elif 'real' in available_files:
+                        # Auto-select: use only real MetaAPI data
+                        if 'real' in available_files:
                             selected_data = available_files['real']
                             data_type = 'REAL'
                         else:
-                            selected_data = available_files['sample']
-                            data_type = 'SAMPLE'
+                            print("❌ No real MetaAPI data found!")
+                            continue
                     else:
                         idx = int(choice_data) - 1
                         selected_data = list(available_files.values())[idx]
@@ -228,11 +219,9 @@ def main():
             elif choice == "5":
                 print_header("ADVANCED MODEL COMPARISON")
                 
-                # Check for available data
+                # Use only real MetaAPI data for comparison
                 data_files = [
-                    'data/xauusd_m15_combined.csv',
-                    'data/xauusd_m15_real.csv', 
-                    'data/xauusd_m15.csv'
+                    'data/xauusd_m15_real.csv'
                 ]
                 
                 selected_data = None
@@ -270,11 +259,9 @@ def main():
             elif choice == "6":
                 print_header("LATEST PREDICTION")
                 
-                # Auto-select best data for prediction
+                # Use only real MetaAPI data for prediction
                 data_files = [
-                    'data/xauusd_m15_combined.csv',
-                    'data/xauusd_m15_real.csv', 
-                    'data/xauusd_m15.csv'
+                    'data/xauusd_m15_real.csv'
                 ]
                 
                 selected_data = None
