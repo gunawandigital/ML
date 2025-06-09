@@ -3,7 +3,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import joblib
-from feature_engineering import prepare_data, select_features
+from feature_engineering import prepare_data
+
+def select_features(df):
     """Select relevant features for backtesting"""
     feature_columns = [
         'EMA_9', 'EMA_21', 'EMA_50',
