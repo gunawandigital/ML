@@ -6,9 +6,11 @@ class TradingConfig:
     """Trading configuration settings"""
 
     def __init__(self):
-        # MetaAPI Settings (HARUS DIISI!)
-        self.META_API_TOKEN = "YOUR_METAAPI_TOKEN_HERE"  # Dapatkan dari metaapi.cloud
-        self.ACCOUNT_ID = "YOUR_ACCOUNT_ID_HERE"         # ID akun MetaTrader
+        import os
+        
+        # MetaAPI Settings (dari environment variables/secrets)
+        self.META_API_TOKEN = os.getenv("META_API_TOKEN", "YOUR_METAAPI_TOKEN_HERE")
+        self.ACCOUNT_ID = os.getenv("ACCOUNT_ID", "YOUR_ACCOUNT_ID_HERE")
 
         # Trading Settings
         self.SYMBOL = "XAUUSD"              # Gold/USD
@@ -32,11 +34,11 @@ class TradingConfig:
         """Validate configuration settings"""
         errors = []
 
-        if self.META_API_TOKEN == "YOUR_METAAPI_TOKEN_HERE":
-            errors.append("MetaAPI token not set")
+        if self.META_API_TOKEN == "YOUR_METAAPI_TOKEN_HERE" or not self.META_API_TOKEN:
+            errors.append("MetaAPI token not set - please add META_API_TOKEN to secrets")
 
-        if self.ACCOUNT_ID == "YOUR_ACCOUNT_ID_HERE":
-            errors.append("Account ID not set")
+        if self.ACCOUNT_ID == "YOUR_ACCOUNT_ID_HERE" or not self.ACCOUNT_ID:
+            errors.append("Account ID not set - please add ACCOUNT_ID to secrets")
 
         if self.LOT_SIZE <= 0:
             errors.append("Lot size must be positive")
