@@ -21,10 +21,11 @@ def show_menu():
     print("2. Download Real Data from MetaAPI")
     print("3. Feature Engineering")
     print("4. Model Training")
-    print("5. Latest Prediction")
-    print("6. Backtesting")
-    print("7. MetaAPI Setup")
-    print("8. Exit")
+    print("5. Advanced Model Comparison")
+    print("6. Latest Prediction")
+    print("7. Backtesting")
+    print("8. MetaAPI Setup")
+    print("9. Exit")
 
 def run_pipeline():
     """Executes the complete trading pipeline."""
@@ -223,6 +224,39 @@ def main():
                     print(f"✓ Model trained: {accuracy:.4f} accuracy")
 
             elif choice == "5":
+                print_header("ADVANCED MODEL COMPARISON")
+                
+                # Check for available data
+                data_files = [
+                    'data/xauusd_m15_combined.csv',
+                    'data/xauusd_m15_real.csv', 
+                    'data/xauusd_m15.csv'
+                ]
+                
+                selected_data = None
+                for data_path in data_files:
+                    if os.path.exists(data_path):
+                        selected_data = data_path
+                        break
+                
+                if not selected_data:
+                    print("❌ No data files found!")
+                    continue
+                
+                print(f"🎯 Comparing models with data: {selected_data}")
+                print("⚠️  This will take 10-20 minutes...")
+                
+                try:
+                    from train_advanced import compare_models
+                    models, best_model = compare_models(data_path=selected_data)
+                    print(f"\n🏆 Best performing model: {best_model}")
+                except ImportError:
+                    print("❌ Advanced models not available. Installing packages...")
+                    print("Please run: pip install xgboost lightgbm catboost")
+                except Exception as e:
+                    print(f"❌ Error in model comparison: {e}")
+
+            elif choice == "6":
                 print_header("LATEST PREDICTION")
                 
                 # Auto-select best data for prediction
@@ -243,24 +277,24 @@ def main():
                 print(f"Signal: {signal['signal']} | Confidence: {signal['confidence']:.1%}")
                 print(f"Using data: {selected_data}")
 
-            elif choice == "6":
+            elif choice == "7":
                 print_header("BACKTESTING")
                 from backtest import backtest_strategy
                 equity_df, trades_df = backtest_strategy()
                 print("✓ Backtesting completed")
 
-            elif choice == "7":
+            elif choice == "8":
                 print_header("METAAPI SETUP")
                 import asyncio
                 from setup_metaapi import main as setup_main
                 asyncio.run(setup_main())
 
-            elif choice == "8":
+            elif choice == "9":
                 print("\n👋 Goodbye! Happy trading!")
                 break
 
             else:
-                print("❌ Invalid choice. Please select 1-8.")
+                print("❌ Invalid choice. Please select 1-9.")
 
             input("\nPress Enter to continue...")
 
