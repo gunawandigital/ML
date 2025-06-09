@@ -13,3 +13,5 @@ pandas
 scikit-learn
 seaborn
 ta
+asyncio-mqtt
+metaapi-cloud-sdk
