@@ -16,7 +16,7 @@ run = ["sh", "-c", "python3 web_dashboard.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
-runButton = "Start Dashboard"
+runButton = "Deploy Trading System"
 
 [[workflows.workflow]]
 name = "Web Dashboard"
