@@ -63,35 +63,61 @@ class MetaAPITrader:
     async def initialize(self):
         """Initialize MetaAPI connection and load ML model"""
         try:
-            # Initialize MetaAPI
-            self.api = MetaApi(self.token)
-            self.account = await self.api.metatrader_account_api.get_account(self.account_id)
+            # Load ML model first to catch any compatibility issues early
+            try:
+                self.model, self.scaler = load_model()
+                self.logger.info("✅ ML model loaded successfully!")
+            except Exception as model_error:
+                self.logger.error(f"❌ ML model loading failed: {model_error}")
+                self.logger.info("🔧 Try retraining the model with current scikit-learn version")
+                return False
             
-            # Wait for account deployment with timeout
-            await asyncio.wait_for(self.account.deploy(), timeout=30)
-            await asyncio.wait_for(self.account.wait_connected(), timeout=60)
+            # Initialize MetaAPI with retries
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self.logger.info(f"🔌 Attempting MetaAPI connection (attempt {attempt + 1}/{max_retries})...")
+                    
+                    # Initialize MetaAPI
+                    self.api = MetaApi(self.token)
+                    self.account = await self.api.metatrader_account_api.get_account(self.account_id)
+                    
+                    # Wait for account deployment with longer timeout
+                    await asyncio.wait_for(self.account.deploy(), timeout=60)
+                    await asyncio.wait_for(self.account.wait_connected(), timeout=120)
+                    
+                    # Create streaming connection for trading and data
+                    self.connection = self.account.get_streaming_connection()
+                    await asyncio.wait_for(self.connection.connect(), timeout=60)
+                    await asyncio.wait_for(self.connection.wait_synchronized(), timeout=300)
+                    
+                    self.logger.info("✅ MetaAPI connection established successfully!")
+                    
+                    # Get account balance
+                    balance = await self.get_account_balance()
+                    self.logger.info(f"✅ Account balance: ${balance:.2f}")
+                    
+                    return True
+                    
+                except asyncio.TimeoutError:
+                    self.logger.warning(f"⏰ Connection timeout on attempt {attempt + 1}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(5)  # Wait before retry
+                        continue
+                    else:
+                        self.logger.error("❌ All connection attempts failed due to timeout")
+                        return False
+                except Exception as conn_error:
+                    self.logger.warning(f"⚠️ Connection error on attempt {attempt + 1}: {conn_error}")
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(5)  # Wait before retry
+                        continue
+                    else:
+                        self.logger.error(f"❌ All connection attempts failed: {conn_error}")
+                        return False
             
-            # Create streaming connection for trading and data
-            self.connection = self.account.get_streaming_connection()
-            await asyncio.wait_for(self.connection.connect(), timeout=30)
-            await asyncio.wait_for(self.connection.wait_synchronized(), timeout=120)
-            
-            # Load ML model
-            self.model, self.scaler = load_model()
-            
-            self.logger.info("✅ MetaAPI RPC connection established successfully!")
-            
-            # Get account balance
-            balance = await self.get_account_balance()
-            self.logger.info(f"✅ Account balance: ${balance:.2f}")
-            
-            self.logger.info("✅ ML model loaded successfully!")
-            
-            return True
-            
-        except asyncio.TimeoutError:
-            self.logger.error("❌ Initialization failed: Connection timeout")
             return False
+            
         except Exception as e:
             self.logger.error(f"❌ Initialization failed: {e}")
             return False
@@ -374,22 +400,49 @@ class MetaAPITrader:
         self.is_trading = True
         self.logger.info("🚀 Starting automated trading...")
         
+        connection_errors = 0
+        max_connection_errors = 5
+        
         try:
             while self.is_trading:
-                # Generate trading signal
-                signal = await self.generate_trading_signal()
+                try:
+                    # Check connection health
+                    if self.connection and hasattr(self.connection, 'is_connected'):
+                        if not self.connection.is_connected():
+                            self.logger.warning("⚠️ Connection lost, attempting to reconnect...")
+                            await self.initialize()
+                    
+                    # Generate trading signal
+                    signal = await self.generate_trading_signal()
+                    
+                    if 'error' not in signal:
+                        self.logger.info(f"📊 Signal: {signal['signal']} | Confidence: {signal['confidence']:.1%} | Price: ${signal['current_price']:.2f}")
+                        
+                        # Check existing positions
+                        await self.check_and_close_positions()
+                        
+                        # Place new order if no current position
+                        if not self.current_position:
+                            order_id = await self.place_order(signal)
+                            if order_id:
+                                self.last_signal_time = signal['timestamp']
+                        
+                        connection_errors = 0  # Reset error counter on success
+                    else:
+                        self.logger.warning(f"⚠️ Signal generation error: {signal.get('error', 'Unknown error')}")
+                        connection_errors += 1
+                        
+                        if connection_errors >= max_connection_errors:
+                            self.logger.error("❌ Too many consecutive errors, stopping trading")
+                            break
                 
-                if 'error' not in signal:
-                    self.logger.info(f"📊 Signal: {signal['signal']} | Confidence: {signal['confidence']:.1%} | Price: ${signal['current_price']:.2f}")
+                except Exception as loop_error:
+                    self.logger.error(f"❌ Trading loop iteration error: {loop_error}")
+                    connection_errors += 1
                     
-                    # Check existing positions
-                    await self.check_and_close_positions()
-                    
-                    # Place new order if no current position
-                    if not self.current_position:
-                        order_id = await self.place_order(signal)
-                        if order_id:
-                            self.last_signal_time = signal['timestamp']
+                    if connection_errors >= max_connection_errors:
+                        self.logger.error("❌ Too many consecutive errors, stopping trading")
+                        break
                 
                 # Wait before next check
                 await asyncio.sleep(check_interval)

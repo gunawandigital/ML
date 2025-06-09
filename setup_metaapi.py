@@ -91,9 +91,9 @@ async def run_demo_trading():
     try:
         from metaapi_trader import MetaAPITrader
         from trading_config import TradingConfig
-        
+
         config = TradingConfig()
-        
+
         # Create trader with demo settings
         trader = MetaAPITrader(
             token=config.META_API_TOKEN,
@@ -102,34 +102,34 @@ async def run_demo_trading():
             lot_size=config.LOT_SIZE,
             confidence_threshold=config.CONFIDENCE_THRESHOLD
         )
-        
+
         print("🔌 Initializing connection...")
         if await trader.initialize():
             print("✅ Trader initialized successfully!")
-            
+
             print("\n📊 Generating test signal...")
             signal = await trader.generate_trading_signal()
-            
+
             print(f"   Signal: {signal['signal']}")
             print(f"   Confidence: {signal['confidence']:.1%}")
             print(f"   Current Price: ${signal['current_price']:.2f}")
-            
+
             if signal['confidence'] < config.CONFIDENCE_THRESHOLD:
                 print("⚠️ Signal below confidence threshold (70%)")
                 print("   Waiting for better opportunity...")
             else:
                 print("✅ Strong signal detected!")
                 print("   In live trading, this would trigger a trade")
-            
+
         else:
             print("❌ Failed to initialize trader")
-        
+
         # Clean up connections
         try:
             await trader.cleanup()
         except:
             pass
-            
+
     except Exception as e:
         print(f"❌ Demo session error: {e}")
         print("💡 This might be due to network connectivity issues")
@@ -137,14 +137,14 @@ async def run_demo_trading():
 
 async def run_advanced_demo():
     """Run advanced demo with MetaAPITrader"""
-    
+
     print("\n🎯 Advanced Demo Trading Session")
     print("=" * 50)
 
     try:
         from metaapi_trader import MetaAPITrader
         from trading_config import TradingConfig
-        
+
         config = TradingConfig()
 
         # Create trader instance with demo settings
@@ -168,12 +168,12 @@ async def run_advanced_demo():
 
             print(f"   Signal: {signal['signal']}")
             print(f"   Confidence: {signal['confidence']:.1%}")
-            
+
             if 'current_price' in signal:
                 print(f"   Current Price: ${signal['current_price']:.2f}")
             else:
                 print("   Current Price: Not available")
-            
+
             if 'error' in signal:
                 print(f"   Error: {signal['error']}")
 
@@ -188,10 +188,74 @@ async def run_advanced_demo():
         else:
             print("❌ Failed to initialize trader")
             return False
-            
+
+async def test_trading_session():
+    """Test trading session"""
+    print("\n🧪 Testing Trading Session")
+    print("=" * 50)
+
+    try:
+        # First check model compatibility
+        try:
+            from predict import load_model
+            model, scaler = load_model()
+            print("✅ ML model loaded successfully!")
+        except Exception as model_error:
+            print(f"❌ ML model error: {model_error}")
+            print("🔧 Retraining model with current environment...")
+            try:
+                from train import train_model
+                train_model()
+                print("✅ Model retrained successfully!")
+            except Exception as retrain_error:
+                print(f"❌ Retrain failed: {retrain_error}")
+                return
+
+        from metaapi_trader import MetaAPITrader
+        from trading_config import TradingConfig
+
+        config = TradingConfig()
+
+        # Create trader with demo settings
+        trader = MetaAPITrader(
+            token=config.META_API_TOKEN,
+            account_id=config.ACCOUNT_ID,
+            symbol=config.SYMBOL,
+            lot_size=config.LOT_SIZE,
+            confidence_threshold=config.CONFIDENCE_THRESHOLD
+        )
+
+        print("🔌 Initializing connection...")
+        if await trader.initialize():
+            print("✅ Trader initialized successfully!")
+
+            print("\n📊 Generating test signal...")
+            signal = await trader.generate_trading_signal()
+
+            print(f"   Signal: {signal['signal']}")
+            print(f"   Confidence: {signal['confidence']:.1%}")
+            print(f"   Current Price: ${signal['current_price']:.2f}")
+
+            if signal['confidence'] < config.CONFIDENCE_THRESHOLD:
+                print("⚠️ Signal below confidence threshold (70%)")
+                print("   Waiting for better opportunity...")
+            else:
+                print("✅ Strong signal detected!")
+                print("   In live trading, this would trigger a trade")
+
+        else:
+            print("❌ Failed to initialize trader")
+
+        # Clean up connections
+        try:
+            await trader.cleanup()
+        except:
+            pass
+
     except Exception as e:
-        print(f"❌ Advanced demo error: {e}")
-        return False
+        print(f"❌ Demo session error: {e}")
+        print("💡 This might be due to network connectivity issues")
+        print("   Please try again or check your MetaAPI credentials")
 
 async def main():
     """Main setup function"""
