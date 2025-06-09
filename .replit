@@ -12,7 +12,7 @@ language = "python3"
 requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
-run = ["python3", "main.py"]
+run = ["sh", "-c", "python3 web_dashboard.py"]
 deploymentTarget = "cloudrun"
 
 [workflows]
@@ -35,6 +35,15 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python3 web_dashboard.py"
+
+[[workflows.workflow]]
+name = "Deploy Trading System"
+author = 37170483
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 deploy_system.py"
 
 [[ports]]
 localPort = 8080
