@@ -8,16 +8,38 @@ from feature_engineering import prepare_data
 def select_features(df):
     """Select relevant features for prediction"""
     feature_columns = [
+        # Original features
         'EMA_9', 'EMA_21', 'EMA_50',
         'RSI_14', 'RSI_21',
         'HL_Ratio', 'OC_Ratio',
         'Return_1', 'Return_5', 'Return_15',
         'Volatility_5', 'Volatility_15',
         'EMA_Cross_9_21', 'EMA_Cross_21_50',
-        'Price_Above_EMA9', 'Price_Above_EMA21', 'Price_Above_EMA50'
+        'Price_Above_EMA9', 'Price_Above_EMA21', 'Price_Above_EMA50',
+        
+        # Advanced features
+        'BB_Position', 'MACD', 'MACD_Histogram',
+        'Stoch_K', 'Stoch_D',
+        'Hour', 'DayOfWeek', 'IsLondonSession', 'IsNYSession',
+        'ROC_5', 'ROC_10',
+        
+        # Smart Money Concept (SMC) features
+        'BullishStructure', 'BearishStructure',
+        'BullishOB', 'BearishOB', 'NearBullishOB', 'NearBearishOB',
+        'BullishFVG', 'BearishFVG',
+        'LiquiditySweepHigh', 'LiquiditySweepLow',
+        'Premium', 'Discount', 'Equilibrium',
+        'BOS_Bullish', 'BOS_Bearish', 'CHoCH'
     ]
     
-    return df[feature_columns]
+    # Only include volume features if available
+    if 'Volume_Ratio' in df.columns:
+        feature_columns.append('Volume_Ratio')
+    
+    # Filter out columns that don't exist in the dataframe
+    available_features = [col for col in feature_columns if col in df.columns]
+    
+    return df[available_features]
 
 def load_model(model_path='models/'):
     """Load trained model and scaler"""
