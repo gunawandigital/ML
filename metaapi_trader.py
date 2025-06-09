@@ -71,8 +71,8 @@ class MetaAPITrader:
             await self.account.deploy()
             await self.account.wait_connected()
             
-            # Create RPC connection for trading and data
-            self.connection = self.account.get_rpc_connection()
+            # Create streaming connection for trading and data
+            self.connection = self.account.get_streaming_connection()
             await self.connection.connect()
             await self.connection.wait_synchronized()
             
@@ -105,8 +105,9 @@ class MetaAPITrader:
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=count * 2)
             
-            # Use correct MetaAPI method
-            candles = await self.connection.get_historical_candles(
+            # Use terminal state to get candles
+            terminal_state = self.connection.terminal_state
+            candles = await terminal_state.get_candles(
                 symbol=self.symbol,
                 timeframe=timeframe,
                 start_time=start_time,
