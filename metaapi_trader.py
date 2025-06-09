@@ -67,24 +67,34 @@ class MetaAPITrader:
             self.api = MetaApi(self.token)
             self.account = await self.api.metatrader_account_api.get_account(self.account_id)
             
-            # Wait for account deployment
-            await self.account.deploy()
-            await self.account.wait_connected()
+            # Wait for account deployment with timeout
+            await asyncio.wait_for(self.account.deploy(), timeout=30)
+            await asyncio.wait_for(self.account.wait_connected(), timeout=60)
             
             # Create streaming connection for trading and data
             self.connection = self.account.get_streaming_connection()
-            await self.connection.connect()
-            await self.connection.wait_synchronized()
+            await asyncio.wait_for(self.connection.connect(), timeout=30)
+            await asyncio.wait_for(self.connection.wait_synchronized(), timeout=120)
             
             # Load ML model
             self.model, self.scaler = load_model()
             
             self.logger.info("✅ MetaAPI RPC connection established successfully!")
-            self.logger.info(f"✅ Account balance: ${await self.get_account_balance():.2f}")
+            
+            # Get account balance
+            try:
+                balance = await self.get_account_balance()
+                self.logger.info(f"✅ Account balance: ${balance:.2f}")
+            except Exception as balance_error:
+                self.logger.warning(f"⚠️ Could not retrieve balance: {balance_error}")
+            
             self.logger.info("✅ ML model loaded successfully!")
             
             return True
             
+        except asyncio.TimeoutError:
+            self.logger.error("❌ Initialization failed: Connection timeout")
+            return False
         except Exception as e:
             self.logger.error(f"❌ Initialization failed: {e}")
             return False
@@ -92,9 +102,9 @@ class MetaAPITrader:
     async def get_account_balance(self) -> float:
         """Get current account balance"""
         try:
-            # Use the connection to get account information
-            account_info = await self.connection.get_account_information()
-            return account_info['balance']
+            # Use the account object to get account information
+            account_info = await self.account.get_account_information()
+            return account_info.balance
         except Exception as e:
             self.logger.error(f"Error getting balance: {e}")
             return 0.0
@@ -162,7 +172,17 @@ class MetaAPITrader:
                 }
             
             # Prepare features
-            processed_data = prepare_data(df)
+            try:
+                processed_data = prepare_data(df)
+            except Exception as feat_error:
+                self.logger.error(f"Feature processing error: {feat_error}")
+                return {
+                    'signal': 'HOLD', 
+                    'confidence': 0.0, 
+                    'current_price': df['Close'].iloc[-1] if 'Close' in df.columns else 2650.0,
+                    'timestamp': datetime.now(),
+                    'error': f'Feature processing failed: {feat_error}'
+                }
             
             if processed_data.empty:
                 return {
@@ -170,7 +190,7 @@ class MetaAPITrader:
                     'confidence': 0.0, 
                     'current_price': df['Close'].iloc[-1] if 'Close' in df.columns else 2650.0,
                     'timestamp': datetime.now(),
-                    'error': 'Feature processing failed'
+                    'error': 'Feature processing returned empty data'
                 }
             
             latest_data = processed_data.iloc[-1:].copy()
