@@ -133,7 +133,6 @@ async def run_demo_trading():
     except Exception as e:
         print(f"❌ Demo session error: {e}")
         print("💡 This might be due to network connectivity issues")
-        print(""   This might be due to network connectivity issues")
         print("   Please try again or check your MetaAPI credentials")
 
 async def run_advanced_demo():
