@@ -3,7 +3,10 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "pkg-config", "qhull", "tcl", "tk", "gcc", "libgomp", "glibc", "stdenv"]
+packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "pkg-config", "qhull", "tcl", "tk", "gcc", "libgomp", "glibc", "stdenv", "binutils"]
+
+[env]
+LD_LIBRARY_PATH = "/nix/store/*-glibc-*/lib:/nix/store/*-gcc-*/lib:/nix/store/*-libgomp-*/lib"
 
 [unitTest]
 language = "python3"

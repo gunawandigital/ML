@@ -254,7 +254,15 @@ def main():
                     print("❌ Advanced models not available. Installing packages...")
                     print("Please run: pip install xgboost lightgbm catboost")
                 except Exception as e:
-                    print(f"❌ Error in model comparison: {e}")
+                    error_msg = str(e)
+                    if "libgomp" in error_msg or "shared object file" in error_msg:
+                        print(f"❌ Library linking error: {error_msg}")
+                        print("🔧 System configuration updated. Please:")
+                        print("   1. Stop the current process (Ctrl+C)")
+                        print("   2. Click the 'Stop' button in the console")
+                        print("   3. Click 'Run' again to restart with updated configuration")
+                    else:
+                        print(f"❌ Error in model comparison: {e}")
 
             elif choice == "6":
                 print_header("LATEST PREDICTION")
