@@ -105,9 +105,8 @@ class MetaAPITrader:
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=count * 2)
             
-            # Use history storage for getting recent candles
-            history_storage = self.connection.history_storage
-            candles = await history_storage.get_historical_candles(
+            # Use streaming connection for getting recent candles
+            candles = await self.connection.get_candles(
                 self.symbol,
                 timeframe,
                 start_time,
