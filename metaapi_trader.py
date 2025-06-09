@@ -99,8 +99,8 @@ class MetaAPITrader:
     async def get_account_balance(self) -> float:
         """Get current account balance"""
         try:
-            # Use the connection to get account information
-            account_info = await self.connection.get_account_information()
+            # Use the account object to get account information via RPC API
+            account_info = await self.account.get_account_information()
             return account_info.get('balance', 0.0)
         except Exception as e:
             self.logger.warning(f"Could not retrieve balance: {e}")
