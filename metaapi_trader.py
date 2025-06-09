@@ -92,8 +92,8 @@ class MetaAPITrader:
     async def get_account_balance(self) -> float:
         """Get current account balance"""
         try:
-            # Use the account object instead of connection
-            account_info = await self.account.get_account_information()
+            # Use the connection to get account information
+            account_info = await self.connection.get_account_information()
             return account_info['balance']
         except Exception as e:
             self.logger.error(f"Error getting balance: {e}")
@@ -162,7 +162,7 @@ class MetaAPITrader:
                 }
             
             # Prepare features
-            processed_data = prepare_data(df, save_to_file=False)
+            processed_data = prepare_data(df)
             
             if processed_data.empty:
                 return {
