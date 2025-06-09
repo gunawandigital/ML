@@ -32,6 +32,8 @@ dashboard_data = {
     'last_update': None,
     'trades_count': 0,
     'error_message': None,
+    'live_trading_active': False,
+    'last_trade_check': None,
     'system_health': {
         'model_loaded': False,
         'data_available': False,
@@ -40,6 +42,47 @@ dashboard_data = {
         'errors': []
     }
 }
+
+def check_live_trading_status():
+    """Check if live trading is currently active"""
+    try:
+        # Check if there's a running live trading process
+        import psutil
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = ' '.join(proc.info['cmdline'] or [])
+                if 'run_live_trading.py' in cmdline and proc.is_running():
+                    return True, f"Live trading active (PID: {proc.info['pid']})"
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        
+        return False, "Live trading not detected"
+        
+    except ImportError:
+        # Fallback: check for trading log activity
+        import os
+        from datetime import datetime, timedelta
+        
+        # Check if there are recent trading activities
+        if os.path.exists('.metaapi'):
+            metaapi_files = os.listdir('.metaapi')
+            recent_activity = False
+            for file in metaapi_files:
+                file_path = os.path.join('.metaapi', file)
+                if os.path.isfile(file_path):
+                    # Check if file was modified in last 10 minutes
+                    mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+                    if datetime.now() - mtime < timedelta(minutes=10):
+                        recent_activity = True
+                        break
+            
+            if recent_activity:
+                return True, "Recent trading activity detected"
+        
+        return False, "No live trading activity"
+    
+    except Exception as e:
+        return False, f"Error checking live trading: {str(e)}"
 
 def check_system_health():
     """Comprehensive system health check"""
@@ -235,11 +278,19 @@ def load_dashboard_data():
         
         dashboard_data['current_signal'] = signal
         
-        # Set status based on signal quality
+        # Check live trading status
+        live_trading_active, live_trading_message = check_live_trading_status()
+        dashboard_data['live_trading_active'] = live_trading_active
+        dashboard_data['live_trading_message'] = live_trading_message
+        dashboard_data['last_trade_check'] = datetime.now()
+        
+        # Set status based on live trading and signal quality
         if signal.get('error'):
             dashboard_data['status'] = 'Error'
+        elif live_trading_active:
+            dashboard_data['status'] = '🚀 LIVE TRADING'
         elif signal['confidence'] >= 0.7:
-            dashboard_data['status'] = 'Active'
+            dashboard_data['status'] = 'Ready for Trading'
         else:
             dashboard_data['status'] = 'Monitoring'
         

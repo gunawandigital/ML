@@ -70,6 +70,23 @@
         .status-error { background-color: #f56565; }
         .status-warning { background-color: #ed8936; }
         .status-stopped { background-color: #a0aec0; }
+        
+        .live-trading-banner {
+            background: linear-gradient(45deg, #48bb78, #38a169);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            animation: pulse-glow 2s infinite;
+        }
+        
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 5px rgba(72, 187, 120, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(72, 187, 120, 0.8); }
+            100% { box-shadow: 0 0 5px rgba(72, 187, 120, 0.5); }
+        }
 
         @keyframes pulse {
             0% { opacity: 1; }
@@ -287,8 +304,11 @@
         <!-- Status Bar -->
         <div class="status-bar">
             <div class="status-indicator">
-                <div class="status-dot {% if data.status == 'Active' %}status-active{% elif data.status == 'Error' %}status-error{% elif data.status == 'Monitoring' %}status-warning{% else %}status-stopped{% endif %}"></div>
+                <div class="status-dot {% if '🚀 LIVE TRADING' in data.status %}status-active{% elif data.status == 'Error' %}status-error{% elif data.status == 'Monitoring' %}status-warning{% else %}status-stopped{% endif %}"></div>
                 <span><strong>System Status:</strong> {{ data.status }}</span>
+                {% if data.get('live_trading_active') %}
+                    <span style="color: #48bb78; font-weight: bold; margin-left: 10px;">● LIVE</span>
+                {% endif %}
             </div>
             <div>
                 <strong>Last Update:</strong> <span id="lastUpdate">{{ data.last_update.strftime('%H:%M:%S') if data.last_update else 'Never' }}</span>
@@ -297,6 +317,12 @@
                 <strong>Market:</strong> <span style="color: #48bb78;">OPEN</span>
             </div>
         </div>
+
+        {% if data.get('live_trading_active') %}
+        <div class="live-trading-banner">
+            🚀 LIVE TRADING ACTIVE - Real trades are being executed automatically
+        </div>
+        {% endif %}
 
         <div class="refresh-info">
             📊 Dashboard auto-refreshes every 30 seconds | Enhanced monitoring active | 
@@ -349,7 +375,13 @@
                 <h3><span class="card-icon">📈</span>Trading Status</h3>
                 <div class="metric">
                     <span class="metric-label">Status:</span>
-                    <span class="metric-value">{{ data.status }}</span>
+                    <span class="metric-value {% if data.get('live_trading_active') %}signal-buy{% endif %}">{{ data.status }}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Live Trading:</span>
+                    <span class="metric-value {% if data.get('live_trading_active') %}signal-buy{% else %}signal-error{% endif %}">
+                        {% if data.get('live_trading_active') %}🚀 ACTIVE{% else %}❌ STOPPED{% endif %}
+                    </span>
                 </div>
                 <div class="metric">
                     <span class="metric-label">Model:</span>
@@ -360,9 +392,15 @@
                     <span class="metric-value">{{ data.get('trades_today', 0) }}</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">Last Update:</span>
-                    <span class="metric-value">{{ data.last_update.strftime('%H:%M:%S') if data.last_update else 'Never' }}</span>
+                    <span class="metric-label">Last Check:</span>
+                    <span class="metric-value">{{ data.last_trade_check.strftime('%H:%M:%S') if data.last_trade_check else 'Never' }}</span>
                 </div>
+                {% if data.get('live_trading_message') %}
+                <div class="metric">
+                    <span class="metric-label">Details:</span>
+                    <span class="metric-value" style="font-size: 0.85rem;">{{ data.live_trading_message }}</span>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Current Signal Card -->
