@@ -3,7 +3,11 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "glibcLocales", "gobject-introspection", "gtk3", "ocl-icd", "opencl-headers", "pkg-config", "qhull", "tcl", "tk"]
+packages = ["binutils", "cairo", "ffmpeg-full", "freetype", "gcc", "ghostscript", "glibc", "glibcLocales", "gobject-introspection", "gtk3", "libgomp", "ocl-icd", "opencl-headers", "pkg-config", "qhull", "stdenv", "tcl", "tk"]
+
+[env]
+LD_LIBRARY_PATH = "/nix/store/*-gcc-*/lib64:/nix/store/*-gcc-*/lib:/nix/store/*-glibc-*/lib:/nix/store/*-libgomp-*/lib"
+LIBRARY_PATH = "/nix/store/*-gcc-*/lib64:/nix/store/*-gcc-*/lib:/nix/store/*-glibc-*/lib:/nix/store/*-libgomp-*/lib"
 
 [unitTest]
 language = "python3"
@@ -12,11 +16,23 @@ language = "python3"
 requiredFiles = [".replit", "replit.nix"]
 
 [deployment]
-run = ["sh", "-c", "python3 web_dashboard.py"]
+run = ["sh", "-c", "python web_server.py"]
 deploymentTarget = "cloudrun"
 
+[env]
+REPLIT_DISABLE_PACKAGE_LAYER = "1"
+
 [workflows]
-runButton = "Deploy Trading System"
+runButton = "Run Trading System"
+
+[[workflows.workflow]]
+name = "Run Trading System"
+author = 37170483
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
 
 [[workflows.workflow]]
 name = "Web Dashboard"
@@ -25,26 +41,17 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python3 web_dashboard.py"
+args = "python web_dashboard.py"
 
 [[workflows.workflow]]
-name = "Start Dashboard"
+name = "Live Trading"
 author = 37170483
 mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python3 web_dashboard.py"
-
-[[workflows.workflow]]
-name = "Deploy Trading System"
-author = 37170483
-mode = "sequential"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python3 deploy_system.py"
+args = "python run_live_trading.py"
 
 [[ports]]
-localPort = 8080
+localPort = 5000
 externalPort = 80

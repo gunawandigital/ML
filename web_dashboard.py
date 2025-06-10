@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, jsonify, request
 import pandas as pd
 import json
@@ -54,14 +55,14 @@ def check_live_trading_status():
                     return True, f"Live trading active (PID: {proc.info['pid']})"
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-
+        
         return False, "Live trading not detected"
-
+        
     except ImportError:
         # Fallback: check for trading log activity
         import os
         from datetime import datetime, timedelta
-
+        
         # Check if there are recent trading activities
         if os.path.exists('.metaapi'):
             metaapi_files = os.listdir('.metaapi')
@@ -74,12 +75,12 @@ def check_live_trading_status():
                     if datetime.now() - mtime < timedelta(minutes=10):
                         recent_activity = True
                         break
-
+            
             if recent_activity:
                 return True, "Recent trading activity detected"
-
+        
         return False, "No live trading activity"
-
+    
     except Exception as e:
         return False, f"Error checking live trading: {str(e)}"
 
@@ -92,14 +93,14 @@ def check_system_health():
         'last_signal_time': None,
         'errors': []
     }
-
+    
     try:
         # Check model
         if os.path.exists('models/random_forest_model.pkl') and os.path.exists('models/scaler.pkl'):
             health['model_loaded'] = True
         else:
             health['errors'].append('ML Model files not found')
-
+        
         # Check data
         if os.path.exists('data/xauusd_m15_real.csv'):
             df = pd.read_csv('data/xauusd_m15_real.csv')
@@ -110,7 +111,7 @@ def check_system_health():
                 health['errors'].append('Data file is empty')
         else:
             health['errors'].append('Real-time data file not found')
-
+        
         # Check trading config
         config = TradingConfig()
         config_errors = config.validate_config()
@@ -119,10 +120,10 @@ def check_system_health():
             health['connection_status'] = 'Configuration Error'
         else:
             health['connection_status'] = 'Configuration OK'
-
+            
     except Exception as e:
         health['errors'].append(f'Health check error: {str(e)}')
-
+    
     return health
 
 async def get_real_price_safe():
@@ -130,41 +131,41 @@ async def get_real_price_safe():
     try:
         from metaapi_trader import MetaAPITrader
         from trading_config import TradingConfig
-
+        
         config = TradingConfig()
-
+        
         # Validate configuration first
         if (config.META_API_TOKEN == "YOUR_METAAPI_TOKEN_HERE" or 
             config.ACCOUNT_ID == "YOUR_ACCOUNT_ID_HERE" or
             not config.META_API_TOKEN or not config.ACCOUNT_ID):
             logger.warning("MetaAPI credentials not configured")
             return None, "MetaAPI credentials not configured"
-
+        
         trader = MetaAPITrader(
             token=config.META_API_TOKEN,
             account_id=config.ACCOUNT_ID,
             symbol="XAUUSD"
         )
-
+        
         # Quick connection attempt with strict timeout
         logger.info("Attempting to get real-time price...")
-
+        
         init_success = await asyncio.wait_for(trader.initialize(), timeout=30)
         if not init_success:
             await trader.cleanup()
             return None, "Failed to initialize MetaAPI connection"
-
+        
         # Get real-time data
         df = await asyncio.wait_for(trader.get_real_time_data(count=1), timeout=15)
         await trader.cleanup()
-
+        
         if not df.empty and 'Close' in df.columns:
             price = float(df['Close'].iloc[-1])
             logger.info(f"Successfully retrieved real-time price: ${price:.2f}")
             return price, "real-time"
         else:
             return None, "No price data returned"
-
+            
     except asyncio.TimeoutError:
         logger.warning("Real-time price request timed out")
         return None, "Connection timeout"
@@ -183,7 +184,7 @@ def get_fallback_price():
                 return price, "historical"
     except Exception as e:
         logger.error(f"Error getting fallback price: {e}")
-
+    
     # Ultimate fallback
     return 2650.0, "fallback"
 
@@ -199,7 +200,7 @@ def get_signal_safely(data_path='data/xauusd_m15_real.csv'):
                 'error': 'Data file not found',
                 'price_source': 'fallback'
             }
-
+        
         # Check if model exists
         if not (os.path.exists('models/random_forest_model.pkl') and 
                 os.path.exists('models/scaler.pkl')):
@@ -211,16 +212,16 @@ def get_signal_safely(data_path='data/xauusd_m15_real.csv'):
                 'error': 'ML model not found',
                 'price_source': 'fallback'
             }
-
+        
         # Get signal with error handling
         signal = get_latest_signal(data_path)
-
+        
         # Add price source info
         signal['price_source'] = 'historical'
         signal['error'] = None
-
+        
         return signal
-
+        
     except Exception as e:
         logger.error(f"Error getting signal: {str(e)}")
         fallback_price, price_source = get_fallback_price()
@@ -236,28 +237,28 @@ def get_signal_safely(data_path='data/xauusd_m15_real.csv'):
 def load_dashboard_data():
     """Load dashboard data with comprehensive error handling"""
     global dashboard_data
-
+    
     logger.info("Loading dashboard data...")
-
+    
     try:
         # System health check
         dashboard_data['system_health'] = check_system_health()
-
+        
         # Load trading config
         config = TradingConfig()
-
+        
         # Get current signal
         signal = get_signal_safely()
-
+        
         # Try to get real-time price
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-
+            
             real_price, price_source = loop.run_until_complete(
                 asyncio.wait_for(get_real_price_safe(), timeout=25)
             )
-
+            
             if real_price is not None:
                 signal['current_price'] = real_price
                 signal['price_source'] = price_source
@@ -265,7 +266,7 @@ def load_dashboard_data():
             else:
                 logger.warning(f"Real-time price failed: {price_source}")
                 # Keep existing price from signal
-
+                
         except Exception as price_error:
             logger.error(f"Real-time price error: {price_error}")
             # Keep existing price from signal
@@ -274,15 +275,15 @@ def load_dashboard_data():
                 loop.close()
             except:
                 pass
-
+        
         dashboard_data['current_signal'] = signal
-
+        
         # Check live trading status
         live_trading_active, live_trading_message = check_live_trading_status()
         dashboard_data['live_trading_active'] = live_trading_active
         dashboard_data['live_trading_message'] = live_trading_message
         dashboard_data['last_trade_check'] = datetime.now()
-
+        
         # Set status based on live trading and signal quality
         if signal.get('error'):
             dashboard_data['status'] = 'Error'
@@ -292,19 +293,19 @@ def load_dashboard_data():
             dashboard_data['status'] = 'Ready for Trading'
         else:
             dashboard_data['status'] = 'Monitoring'
-
+        
         # Account info
         dashboard_data['balance'] = 5000.0  # Demo balance
         dashboard_data['last_update'] = datetime.now()
         dashboard_data['error_message'] = None
-
+        
         # Trading stats
         dashboard_data['trades_today'] = 0
         dashboard_data['win_rate'] = 0.0
         dashboard_data['daily_pnl'] = 0.0
-
+        
         logger.info("Dashboard data loaded successfully")
-
+        
     except Exception as e:
         logger.error(f"Error loading dashboard data: {str(e)}")
         dashboard_data['error_message'] = f"Dashboard error: {str(e)}"
@@ -312,102 +313,51 @@ def load_dashboard_data():
 
 @app.route('/')
 def dashboard():
-    """Main dashboard page with fast loading for deployment"""
+    """Main dashboard page with comprehensive data"""
     try:
-        # Fast deployment mode - minimal data loading
-        deployment_mode = os.getenv("DEPLOYMENT_MODE", "true").lower() == "true"
+        load_dashboard_data()
         
-        if deployment_mode:
-            # Minimal data for fast deployment
-            enhanced_data = {
-                'status': 'Ready',
-                'balance': 5000.0,
-                'current_signal': {
-                    'signal': 'MONITORING',
-                    'confidence': 0.0,
-                    'current_price': 2650.0,
-                    'timestamp': datetime.now(),
-                    'price_source': 'default'
-                },
-                'last_update': datetime.now(),
-                'trades_count': 0,
-                'error_message': None,
-                'live_trading_active': False,
-                'system_health': {
-                    'model_loaded': os.path.exists('models/random_forest_model.pkl'),
-                    'data_available': os.path.exists('data/xauusd_m15_real.csv'),
-                    'connection_status': 'Not checked (fast mode)',
-                    'errors': []
-                },
-                'performance': {
-                    'daily_return': 0.0,
-                    'weekly_return': 0.0,
-                    'monthly_return': 0.0,
-                    'max_drawdown': 0.0,
-                    'sharpe_ratio': 0.0
-                },
-                'recent_signals': [],
-                'market_hours': {
-                    'is_open': True,
-                    'current_time': datetime.now().strftime('%H:%M:%S'),
-                    'timezone': 'UTC'
-                }
+        # Enhanced data for template
+        enhanced_data = dashboard_data.copy()
+        
+        # Add performance metrics
+        enhanced_data['performance'] = {
+            'daily_return': 0.0,
+            'weekly_return': 0.0,
+            'monthly_return': 0.0,
+            'max_drawdown': 0.0,
+            'sharpe_ratio': 0.0
+        }
+        
+        # Add recent signals (mock for now)
+        enhanced_data['recent_signals'] = [
+            {
+                'time': '16:55',
+                'signal': 'SELL',
+                'confidence': 46.7,
+                'price': 3293.78,
+                'executed': False
             }
-        else:
-            # Full data loading for development
-            load_dashboard_data()
-            enhanced_data = dashboard_data.copy()
-
-            # Add performance metrics
-            enhanced_data['performance'] = {
-                'daily_return': 0.0,
-                'weekly_return': 0.0,
-                'monthly_return': 0.0,
-                'max_drawdown': 0.0,
-                'sharpe_ratio': 0.0
-            }
-
-            # Add recent signals (mock for now)
-            enhanced_data['recent_signals'] = [
-                {
-                    'time': '16:55',
-                    'signal': 'SELL',
-                    'confidence': 46.7,
-                    'price': 3293.78,
-                    'executed': False
-                }
-            ]
-
-            # Add market hours info
-            enhanced_data['market_hours'] = {
-                'is_open': True,
-                'current_time': datetime.now().strftime('%H:%M:%S'),
-                'timezone': 'UTC'
-            }
-
+        ]
+        
+        # Add market hours info
         now = datetime.now()
+        enhanced_data['market_hours'] = {
+            'is_open': True,  # Markets are generally always open for XAUUSD
+            'current_time': now.strftime('%H:%M:%S'),
+            'timezone': 'UTC'
+        }
+        
         return render_template('dashboard.html', 
                              data=enhanced_data,
                              timestamp=now.strftime('%Y-%m-%d %H:%M:%S'))
-
+                             
     except Exception as e:
         logger.error(f"Dashboard route error: {str(e)}")
         error_data = {
-            'error_message': f"Dashboard loading (fast mode)",
-            'status': 'Loading',
-            'last_update': datetime.now(),
-            'current_signal': {
-                'signal': 'LOADING',
-                'confidence': 0.0,
-                'current_price': 2650.0,
-                'timestamp': datetime.now()
-            },
-            'system_health': {
-                'model_loaded': False,
-                'data_available': False,
-                'connection_status': 'Loading',
-                'errors': []
-            }
+            'error_message': f"Dashboard error: {str(e)}",
+            'status': 'Error',
+            'last_update': datetime.now()
         }
         return render_template('dashboard.html', 
                              data=error_data,
@@ -477,7 +427,7 @@ def api_config():
     try:
         config = TradingConfig()
         validation_errors = config.validate_config()
-
+        
         return jsonify({
             'success': True,
             'config': {
@@ -505,14 +455,14 @@ def api_logs():
     """API endpoint for recent system logs"""
     try:
         logs = []
-
+        
         # Add recent log entries (in a real system, you'd read from log files)
         logs.append({
             'timestamp': datetime.now().isoformat(),
             'level': 'INFO',
             'message': 'Dashboard data refreshed successfully'
         })
-
+        
         if dashboard_data.get('current_signal'):
             signal = dashboard_data['current_signal']
             logs.append({
@@ -520,7 +470,7 @@ def api_logs():
                 'level': 'INFO',
                 'message': f"Signal: {signal.get('signal', 'Unknown')} | Confidence: {signal.get('confidence', 0):.1%}"
             })
-
+        
         if dashboard_data.get('system_health', {}).get('errors'):
             for error in dashboard_data['system_health']['errors']:
                 logs.append({
@@ -528,7 +478,7 @@ def api_logs():
                     'level': 'ERROR',
                     'message': error
                 })
-
+        
         return jsonify({
             'success': True,
             'logs': logs[-10:],  # Last 10 logs
@@ -572,7 +522,7 @@ def api_start_trading():
     try:
         import subprocess
         import sys
-
+        
         # Check if live trading is already running
         live_trading_active, message = check_live_trading_status()
         if live_trading_active:
@@ -582,19 +532,19 @@ def api_start_trading():
                 'message': message,
                 'timestamp': datetime.now().isoformat()
             })
-
+        
         # Start live trading in background
         process = subprocess.Popen([
             sys.executable, "run_live_trading.py"
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
+        
         return jsonify({
             'success': True,
             'message': 'Live trading started successfully',
             'process_id': process.pid,
             'timestamp': datetime.now().isoformat()
         })
-
+        
     except Exception as e:
         return jsonify({
             'success': False,
@@ -608,9 +558,9 @@ def api_stop_trading():
     try:
         import psutil
         import signal
-
+        
         stopped_processes = 0
-
+        
         # Find and stop live trading processes
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
@@ -620,7 +570,7 @@ def api_stop_trading():
                     stopped_processes += 1
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-
+        
         if stopped_processes > 0:
             return jsonify({
                 'success': True,
@@ -633,7 +583,7 @@ def api_stop_trading():
                 'error': 'No live trading processes found',
                 'timestamp': datetime.now().isoformat()
             })
-
+        
     except ImportError:
         return jsonify({
             'success': False,
@@ -649,44 +599,13 @@ def api_stop_trading():
 
 if __name__ == '__main__':
     print("🌐 Starting Enhanced Forex Trading Dashboard...")
-
-    # Force deployment mode optimizations for faster startup
-    deployment_mode = True
-    port_used = 5000
-
-    print(f"🚀 FAST DEPLOYMENT MODE: Using port {port_used}")
-    print(f"📊 Dashboard URL: http://0.0.0.0:{port_used}")
+    print("📊 Dashboard URL: http://0.0.0.0:5000")
     print("🔄 Auto-refresh: 30 seconds")
     print("📋 Health check: /api/health")
     print("📊 System logs: /api/logs")
-    print("=" * 50)
-
-    # Skip initial data loading for faster startup
-    print("⚡ Skipping initial data load for fast deployment...")
-
-    # Start Flask app with maximum deployment optimizations
-    try:
-        # Ultra-fast deployment mode
-        app.run(
-            host='0.0.0.0', 
-            port=port_used, 
-            debug=False, 
-            threaded=True, 
-            use_reloader=False,
-            processes=1,
-            load_dotenv=False  # Skip loading .env for faster startup
-        )
-    except OSError as e:
-        if "Address already in use" in str(e):
-            print(f"❌ Port {port_used} is still in use. Trying port 8080...")
-            app.run(
-                host='0.0.0.0', 
-                port=8080, 
-                debug=False, 
-                threaded=True, 
-                use_reloader=False,
-                processes=1,
-                load_dotenv=False
-            )
-        else:
-            raise e
+    
+    # Load initial data
+    load_dashboard_data()
+    
+    # Start Flask app
+    app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
